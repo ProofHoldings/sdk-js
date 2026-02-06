@@ -1,0 +1,61 @@
+{
+  "name": "@proof/sdk",
+  "version": "1.0.0",
+  "description": "Official JavaScript/TypeScript SDK for the proof.holdings verification API",
+  "keywords": [
+    "proof-holdings",
+    "verification",
+    "sdk",
+    "authentication",
+    "api",
+    "jwt",
+    "jwks"
+  ],
+  "author": "proof.holdings",
+  "license": "MIT",
+  "homepage": "https://proof.holdings",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ProofHoldings/sdk-js.git"
+  },
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "npm run build:esm && npm run build:cjs",
+    "build:esm": "tsc -p tsconfig.esm.json && echo '{\"type\":\"module\"}' > dist/esm/package.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "jose": "^5.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
