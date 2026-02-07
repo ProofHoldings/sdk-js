@@ -1,9 +1,12 @@
-export { ProofHoldings } from './client.js';
+export { Proof } from './client.js';
 export { VERSION } from './version.js';
+
+/** @deprecated Use `Proof` instead. Will be removed in v2.0. */
+export { Proof as ProofHoldings } from './client.js';
 
 // Error classes
 export {
-  ProofHoldingsError,
+  ProofError,
   ValidationError,
   AuthenticationError,
   ForbiddenError,
@@ -15,6 +18,9 @@ export {
   TimeoutError,
   PollingTimeoutError,
 } from './errors.js';
+
+/** @deprecated Use `ProofError` instead. Will be removed in v2.0. */
+export { ProofError as ProofHoldingsError } from './errors.js';
 
 // Types
 export type {
@@ -64,9 +70,12 @@ export type {
   ListWebhookDeliveriesParams,
 
   // Config
-  ProofHoldingsOptions,
+  ProofOptions,
   WaitOptions,
 } from './types.js';
 
-// Default export for convenience: import ProofHoldings from '@proof/sdk'
-export { ProofHoldings as default } from './client.js';
+/** @deprecated Use `ProofOptions` instead. Will be removed in v2.0. */
+export type { ProofOptions as ProofHoldingsOptions } from './types.js';
+
+// Default export for convenience: import Proof from '@proof/sdk'
+export { Proof as default } from './client.js';

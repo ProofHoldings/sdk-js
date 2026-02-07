@@ -11,9 +11,9 @@ npm install @proof/sdk
 ## Quick Start
 
 ```typescript
-import ProofHoldings from '@proof/sdk';
+import Proof from '@proof/sdk';
 
-const proof = new ProofHoldings('pk_live_...');
+const proof = new Proof('pk_live_...');
 
 // Create a phone verification
 const verification = await proof.verifications.create({
@@ -125,7 +125,7 @@ await proof.webhookDeliveries.retry(deliveries.data[0].id);
 ## Error Handling
 
 ```typescript
-import { ProofHoldings, ValidationError, RateLimitError, AuthenticationError } from '@proof/sdk';
+import { Proof, ValidationError, RateLimitError, AuthenticationError } from '@proof/sdk';
 
 try {
   await proof.verifications.create({ ... });
@@ -143,7 +143,7 @@ try {
 ## Configuration
 
 ```typescript
-const proof = new ProofHoldings('pk_live_...', {
+const proof = new Proof('pk_live_...', {
   baseUrl: 'https://api.proof.holdings', // default
   timeout: 30000,                         // 30s request timeout (default)
   maxRetries: 2,                          // retry failed requests (default)

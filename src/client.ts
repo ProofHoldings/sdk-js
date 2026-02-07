@@ -4,22 +4,22 @@ import { VerificationRequests } from './resources/verification-requests.js';
 import { Proofs } from './resources/proofs.js';
 import { Sessions } from './resources/sessions.js';
 import { WebhookDeliveries } from './resources/webhook-deliveries.js';
-import type { ProofHoldingsOptions } from './types.js';
+import type { ProofOptions } from './types.js';
 
 const DEFAULT_BASE_URL = 'https://api.proof.holdings';
 const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RETRIES = 2;
 
-export class ProofHoldings {
+export class Proof {
   public readonly verifications: Verifications;
   public readonly verificationRequests: VerificationRequests;
   public readonly proofs: Proofs;
   public readonly sessions: Sessions;
   public readonly webhookDeliveries: WebhookDeliveries;
 
-  constructor(apiKey: string, options?: ProofHoldingsOptions) {
+  constructor(apiKey: string, options?: ProofOptions) {
     if (!apiKey) {
-      throw new Error('API key is required. Pass your key as the first argument: new ProofHoldings("pk_live_...")');
+      throw new Error('API key is required. Pass your key as the first argument: new Proof("pk_live_...")');
     }
 
     const fetchFn = options?.fetch ?? globalThis.fetch;

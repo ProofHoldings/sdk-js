@@ -1,4 +1,4 @@
-import { ProofHoldingsError, NetworkError, TimeoutError } from './errors.js';
+import { ProofError, NetworkError, TimeoutError } from './errors.js';
 import type { ApiError } from './types.js';
 import { VERSION } from './version.js';
 
@@ -77,14 +77,14 @@ export class HttpClient {
         // Error responses
         if (!response.ok) {
           const apiError = body.error as ApiError | undefined;
-          throw ProofHoldingsError.fromResponse(response.status, apiError);
+          throw ProofError.fromResponse(response.status, apiError);
         }
 
         return body as T;
       } catch (error) {
         clearTimeout(timeoutId);
 
-        if (error instanceof ProofHoldingsError) throw error;
+        if (error instanceof ProofError) throw error;
 
         lastError = error as Error;
 
