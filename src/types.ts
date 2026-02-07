@@ -309,7 +309,7 @@ export interface OfflineVerificationResult {
 // Client Configuration
 // ============================================================================
 
-export interface ProofHoldingsOptions {
+export interface ProofOptions {
   baseUrl?: string;
   timeout?: number;
   maxRetries?: number;

@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { ProofHoldings } from '../client.js';
+import { Proof } from '../client.js';
 
-describe('ProofHoldings client', () => {
+describe('Proof client', () => {
   it('throws on empty API key', () => {
-    expect(() => new ProofHoldings('')).toThrow('API key is required');
+    expect(() => new Proof('')).toThrow('API key is required');
   });
 
   it('creates client with valid key', () => {
-    const client = new ProofHoldings('pk_test_123', { fetch: globalThis.fetch });
+    const client = new Proof('pk_test_123', { fetch: globalThis.fetch });
     expect(client.verifications).toBeDefined();
     expect(client.verificationRequests).toBeDefined();
     expect(client.proofs).toBeDefined();
@@ -17,7 +17,7 @@ describe('ProofHoldings client', () => {
 
   it('accepts custom options', () => {
     // Should not throw
-    const client = new ProofHoldings('pk_test_123', {
+    const client = new Proof('pk_test_123', {
       baseUrl: 'https://custom.api.com',
       timeout: 5000,
       maxRetries: 5,
