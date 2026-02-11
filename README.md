@@ -66,6 +66,22 @@ const result = await proof.verifications.waitForCompletion('verification_id', {
   interval: 3000,  // poll every 3s (default)
   timeout: 600000, // 10 min timeout (default)
 });
+
+// WABA (WhatsApp Business) verification
+const waba = await proof.verifications.create({
+  type: 'waba',
+  channel: 'waba_otp',
+  identifier: '+37069199199',
+});
+// OTP is sent via WhatsApp — submit with proof.verifications.submit(waba.id, code)
+
+// Telegram Bot verification
+const bot = await proof.verifications.create({
+  type: 'telegram_bot',
+  channel: 'telegram_bot_token',
+  identifier: '@mybusinessbot',
+});
+// Submit bot token with proof.verifications.submit(bot.id, botToken)
 ```
 
 ### Verification Requests (Multi-Asset)
