@@ -1,8 +1,13 @@
 import type { HttpClient } from '../http.js';
-import type { WebhookDelivery, WebhookDeliveryList, WebhookRetryResponse, ListWebhookDeliveriesParams } from '../types.js';
+import type { WebhookDelivery, WebhookDeliveryList, WebhookDeliveryStats, WebhookRetryResponse, ListWebhookDeliveriesParams } from '../types.js';
 
 export class WebhookDeliveries {
   constructor(private readonly http: HttpClient) {}
+
+  /** Get webhook delivery statistics (totals, rates, recent failures) */
+  stats(): Promise<WebhookDeliveryStats> {
+    return this.http.get<WebhookDeliveryStats>('/api/v1/webhook-deliveries/stats');
+  }
 
   /** List webhook deliveries with optional filters */
   list(params?: ListWebhookDeliveriesParams): Promise<WebhookDeliveryList> {

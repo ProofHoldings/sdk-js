@@ -2,7 +2,7 @@
 // Core Types
 // ============================================================================
 
-export type VerificationType = 'phone' | 'email' | 'domain' | 'social' | 'wallet' | 'account';
+export type VerificationType = 'phone' | 'email' | 'domain' | 'social' | 'wallet' | 'account' | 'waba' | 'telegram_bot';
 
 export type VerificationChannel =
   'whatsapp' | 'telegram' | 'viber' | 'sms'
@@ -10,7 +10,8 @@ export type VerificationChannel =
   | 'dns' | 'http' | 'auto'
   | 'github' | 'google' | 'facebook' | 'x' | 'linkedin' | 'instagram' | 'youtube' | 'tiktok'
   | 'ethereum' | 'solana' | 'bitcoin'
-  | 'coinbase' | 'kraken';
+  | 'coinbase' | 'kraken'
+  | 'waba_otp' | 'telegram_bot_token';
 
 export type VerificationStatus = 'pending' | 'verified' | 'failed' | 'expired' | 'revoked';
 
@@ -29,6 +30,10 @@ export interface ApiError {
   message: string;
   details?: unknown;
   request_id?: string;
+  /** Seconds to wait before retrying (rate limit and lockout errors) */
+  retryAfter?: number;
+  /** Number of remaining attempts before lockout (auth endpoints only) */
+  remaining_attempts?: number;
 }
 
 export interface Pagination {
@@ -166,8 +171,116 @@ export interface ListVerificationRequestsParams {
 }
 
 // ============================================================================
+// Resend
+// ============================================================================
+
+export interface ResendResponse {
+  success: boolean;
+  message: string;
+  expires_at: string;
+}
+
+// ============================================================================
+// Test Verify
+// ============================================================================
+
+export interface TestVerifyResponse {
+  id: string;
+  type: VerificationType;
+  channel: VerificationChannel;
+  status: VerificationStatus;
+  identifier: string;
+  verified_at?: string;
+  proof_token?: string;
+  proof_expires_at?: string;
+  test_mode: boolean;
+}
+
+// ============================================================================
+// Domain Verification
+// ============================================================================
+
+export interface StartDomainVerificationParams {
+  domain: string;
+  customer_id?: string;
+  verification_method?: 'manual_dns' | 'http_file';
+}
+
+export interface DomainVerification {
+  id: string;
+  domain: string;
+  status: string;
+  verification_method?: string;
+  dns_record?: {
+    type: string;
+    name: string;
+    value: string;
+  };
+  http_file?: {
+    path: string;
+    content: string;
+  };
+  provider?: {
+    detected: string;
+    name: string;
+  };
+  verified_at?: string;
+}
+
+export interface DomainCheckResponse {
+  id: string;
+  domain: string;
+  status: string;
+  verified?: boolean;
+  verified_at?: string;
+  check_count?: number;
+}
+
+// ============================================================================
+// Verified Users
+// ============================================================================
+
+export interface VerifiedUserVerification {
+  id: string;
+  type: VerificationType;
+  channel: VerificationChannel;
+  identifier: string;
+  status?: VerificationStatus;
+  verified_at?: string;
+  has_proof?: boolean;
+  proof_expires_at?: string;
+  created_at?: string;
+}
+
+export interface VerifiedUser {
+  external_user_id: string;
+  verification_count: number;
+  types_verified: VerificationType[];
+  verifications: VerifiedUserVerification[];
+  first_verified_at?: string;
+  last_verified_at?: string;
+}
+
+export interface ListVerifiedUsersParams {
+  page?: number;
+  limit?: number;
+}
+
+// ============================================================================
 // Proofs
 // ============================================================================
+
+export interface ProofStatus {
+  proof_id: string;
+  status: string;
+  is_valid: boolean;
+  is_revoked: boolean;
+  revoked_at?: string;
+  revoked_reason?: string;
+  expires_at?: string;
+  is_expired: boolean;
+  verified_at?: string;
+}
 
 export interface ProofValidation {
   valid: boolean;
@@ -275,6 +388,17 @@ export interface WebhookPagination {
   limit: number;
   total: number;
   total_pages: number;
+}
+
+export interface WebhookDeliveryStats {
+  total: number;
+  by_status: {
+    pending: number;
+    delivered: number;
+    failed: number;
+  };
+  delivery_rate: string;
+  recent_failures_24h: number;
 }
 
 export interface ListWebhookDeliveriesParams {

@@ -6,6 +6,13 @@ import type {
   ListVerificationsParams,
   PaginatedList,
   WaitOptions,
+  ResendResponse,
+  TestVerifyResponse,
+  StartDomainVerificationParams,
+  DomainVerification,
+  DomainCheckResponse,
+  VerifiedUser,
+  ListVerifiedUsersParams,
 } from '../types.js';
 
 const TERMINAL_STATES = ['verified', 'failed', 'expired', 'revoked'] as const;
@@ -36,6 +43,36 @@ export class Verifications {
   /** Submit an OTP/challenge code */
   submit(id: string, code: string): Promise<Verification> {
     return this.http.post<Verification>(`/api/v1/verifications/${encodeURIComponent(id)}/submit`, { code });
+  }
+
+  /** Resend a verification email (email channel only) */
+  resend(id: string): Promise<ResendResponse> {
+    return this.http.post<ResendResponse>(`/api/v1/verifications/${encodeURIComponent(id)}/resend`);
+  }
+
+  /** Auto-complete a verification in test mode (pk_test_* API keys only) */
+  testVerify(id: string): Promise<TestVerifyResponse> {
+    return this.http.post<TestVerifyResponse>(`/api/v1/verifications/${encodeURIComponent(id)}/test-verify`);
+  }
+
+  /** List verified users grouped by external_user_id */
+  listVerifiedUsers(params?: ListVerifiedUsersParams): Promise<PaginatedList<VerifiedUser>> {
+    return this.http.get<PaginatedList<VerifiedUser>>('/api/v1/verifications/users', params as Record<string, string | number | boolean | undefined>);
+  }
+
+  /** Get a single verified user's verifications by external user ID */
+  getVerifiedUser(externalUserId: string): Promise<VerifiedUser> {
+    return this.http.get<VerifiedUser>(`/api/v1/verifications/users/${encodeURIComponent(externalUserId)}`);
+  }
+
+  /** Start a B2B domain verification */
+  startDomainVerification(params: StartDomainVerificationParams): Promise<DomainVerification> {
+    return this.http.post<DomainVerification>('/api/v1/verifications/domain', params);
+  }
+
+  /** Check a pending domain verification (DNS/HTTP file) */
+  checkDomainVerification(id: string): Promise<DomainCheckResponse> {
+    return this.http.post<DomainCheckResponse>(`/api/v1/verifications/domain/${encodeURIComponent(id)}/check`);
   }
 
   /**

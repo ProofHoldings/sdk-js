@@ -34,7 +34,10 @@ export class ProofError extends Error {
       case 403: return new ForbiddenError(message, code, details, requestId);
       case 404: return new NotFoundError(message, code, details, requestId);
       case 409: return new ConflictError(message, code, details, requestId);
-      case 429: return new RateLimitError(message, code, details, requestId);
+      case 429:
+        return error
+          ? RateLimitError.fromApiError(error)
+          : new RateLimitError(message, code, details, requestId);
       default:
         if (statusCode >= 500) return new ServerError(message, code, statusCode, details, requestId);
         return new ProofError(message, code, statusCode, details, requestId);
@@ -78,9 +81,30 @@ export class ConflictError extends ProofError {
 }
 
 export class RateLimitError extends ProofError {
-  constructor(message: string, code: string, details?: unknown, requestId?: string) {
+  /** Seconds to wait before retrying (from error response retryAfter field) */
+  public readonly retryAfter?: number;
+  /** Number of remaining attempts before lockout (auth endpoints only) */
+  public readonly remainingAttempts?: number;
+
+  constructor(
+    message: string,
+    code: string,
+    details?: unknown,
+    requestId?: string,
+    retryAfter?: number,
+    remainingAttempts?: number,
+  ) {
     super(message, code, 429, details, requestId);
     this.name = 'RateLimitError';
+    this.retryAfter = retryAfter;
+    this.remainingAttempts = remainingAttempts;
+  }
+
+  static fromApiError(error: ApiError): RateLimitError {
+    return new RateLimitError(
+      error.message, error.code, error.details,
+      error.request_id, error.retryAfter, error.remaining_attempts,
+    );
   }
 }
 

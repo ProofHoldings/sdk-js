@@ -48,6 +48,20 @@ describe('ProofError.fromResponse', () => {
     expect(err).toBeInstanceOf(RateLimitError);
   });
 
+  it('maps 429 with retryAfter and remaining_attempts to RateLimitError', () => {
+    const err = ProofError.fromResponse(429, {
+      code: 'auth_lockout',
+      message: 'Too many attempts',
+      retryAfter: 3600,
+      remaining_attempts: 0,
+    });
+    expect(err).toBeInstanceOf(RateLimitError);
+    const rateLimitErr = err as RateLimitError;
+    expect(rateLimitErr.retryAfter).toBe(3600);
+    expect(rateLimitErr.remainingAttempts).toBe(0);
+    expect(rateLimitErr.code).toBe('auth_lockout');
+  });
+
   it('maps 500 to ServerError', () => {
     const err = ProofError.fromResponse(500);
     expect(err).toBeInstanceOf(ServerError);

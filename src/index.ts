@@ -43,6 +43,14 @@ export type {
   Verification,
   CreateVerificationParams,
   ListVerificationsParams,
+  ResendResponse,
+  TestVerifyResponse,
+  StartDomainVerificationParams,
+  DomainVerification,
+  DomainCheckResponse,
+  VerifiedUserVerification,
+  VerifiedUser,
+  ListVerifiedUsersParams,
 
   // Verification Requests
   RequestedAsset,
@@ -52,6 +60,7 @@ export type {
   ListVerificationRequestsParams,
 
   // Proofs
+  ProofStatus,
   ProofValidation,
   RevokedProof,
   RevocationList,
@@ -66,6 +75,7 @@ export type {
   WebhookDelivery,
   WebhookRetryResponse,
   WebhookDeliveryList,
+  WebhookDeliveryStats,
   WebhookPagination,
   ListWebhookDeliveriesParams,
 

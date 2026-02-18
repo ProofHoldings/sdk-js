@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { HttpClient } from '../http.js';
-import type { ProofValidation, RevocationList, RevokeResponse, OfflineVerificationResult } from '../types.js';
+import type { ProofStatus, ProofValidation, RevocationList, RevokeResponse, OfflineVerificationResult } from '../types.js';
 
 export class Proofs {
   private jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
@@ -23,6 +23,11 @@ export class Proofs {
     return this.http.post<RevokeResponse>(`/api/v1/proofs/${encodeURIComponent(id)}/revoke`, {
       ...(reason ? { reason } : {}),
     });
+  }
+
+  /** Get the status of a proof by verification ID */
+  status(id: string): Promise<ProofStatus> {
+    return this.http.get<ProofStatus>(`/api/v1/proofs/${encodeURIComponent(id)}/status`);
   }
 
   /** Get the revocation list */

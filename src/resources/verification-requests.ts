@@ -28,6 +28,11 @@ export class VerificationRequests {
     return this.http.get<PaginatedList<VerificationRequest>>('/api/v1/verification-requests', params as Record<string, string | number | boolean | undefined>);
   }
 
+  /** Get a verification request by its reference ID */
+  getByReference(referenceId: string): Promise<VerificationRequest> {
+    return this.http.get<VerificationRequest>(`/api/v1/verification-requests/by-reference/${encodeURIComponent(referenceId)}`);
+  }
+
   /** Cancel a pending verification request */
   cancel(id: string): Promise<VerificationRequest> {
     return this.http.del<VerificationRequest>(`/api/v1/verification-requests/${encodeURIComponent(id)}`);
