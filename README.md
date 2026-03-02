@@ -1,17 +1,17 @@
-# @proof/sdk
+# @proof-holdings/sdk
 
 Official JavaScript/TypeScript SDK for the [proof.holdings](https://proof.holdings) verification API.
 
 ## Installation
 
 ```bash
-npm install @proof/sdk
+npm install @proof-holdings/sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import Proof from '@proof/sdk';
+import Proof from '@proof-holdings/sdk';
 
 const proof = new Proof('pk_live_...');
 
@@ -141,7 +141,7 @@ await proof.webhookDeliveries.retry(deliveries.data[0].id);
 ## Error Handling
 
 ```typescript
-import { Proof, ValidationError, RateLimitError, AuthenticationError } from '@proof/sdk';
+import { Proof, ValidationError, RateLimitError, AuthenticationError } from '@proof-holdings/sdk';
 
 try {
   await proof.verifications.create({ ... });

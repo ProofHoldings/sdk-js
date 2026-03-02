@@ -13,6 +13,7 @@ describe('Proof client', () => {
     expect(client.proofs).toBeDefined();
     expect(client.sessions).toBeDefined();
     expect(client.webhookDeliveries).toBeDefined();
+    expect(client.templates).toBeDefined();
   });
 
   it('accepts custom options', () => {

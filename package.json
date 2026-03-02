@@ -1,5 +1,5 @@
 {
-  "name": "@proof/sdk",
+  "name": "@proof-holdings/sdk",
   "version": "1.0.0",
   "description": "Official JavaScript/TypeScript SDK for the proof.holdings verification API",
   "keywords": [
@@ -45,6 +45,7 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run clean && npm run build"
   },
