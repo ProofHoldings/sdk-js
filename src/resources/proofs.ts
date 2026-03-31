@@ -10,11 +10,10 @@ export class Proofs {
     this.jwksUrl = `${http.baseUrl}/.well-known/jwks.json`;
   }
 
-  /** Validate a proof token online (checks revocation status) */
-  validate(proofToken: string, identifier?: string): Promise<ProofValidation> {
+  /** Validate a proof token online (checks revocation status). Public endpoint — no API key required. */
+  validate(proofToken: string): Promise<ProofValidation> {
     return this.http.post<ProofValidation>('/api/v1/proofs/validate', {
       proof_token: proofToken,
-      ...(identifier ? { identifier } : {}),
     });
   }
 

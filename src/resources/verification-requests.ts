@@ -33,6 +33,11 @@ export class VerificationRequests {
     return this.http.get<VerificationRequest>(`/api/v1/verification-requests/by-reference/${encodeURIComponent(referenceId)}`);
   }
 
+  /** Get proof tokens for verified assets in a verification request */
+  getProofs(id: string): Promise<{ proofs: Array<{ type: string; identifier?: string; channel?: string; proof_token: string; verified_at?: string }> }> {
+    return this.http.get(`/api/v1/verification-requests/${encodeURIComponent(id)}/proofs`);
+  }
+
   /** Cancel a pending verification request */
   cancel(id: string): Promise<VerificationRequest> {
     return this.http.del<VerificationRequest>(`/api/v1/verification-requests/${encodeURIComponent(id)}`);
