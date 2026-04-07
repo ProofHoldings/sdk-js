@@ -1,5 +1,6 @@
 export { Proof } from './client.js';
 export { VERSION } from './version.js';
+export { ProfileTemplates, ScopedProfile } from './resources/profiles.js';
 
 /** @deprecated Use `Proof` instead. Will be removed in v2.0. */
 export { Proof as ProofHoldings } from './client.js';
@@ -96,20 +97,13 @@ export type {
   RenderTemplateParams,
   RenderTemplateResponse,
 
-  // Projects
-  ProjectBranding,
-  ProjectCallbacks,
-  ProjectTemplate,
-  Project,
-  ProjectListResponse,
-  CreateProjectParams,
-  UpdateProjectParams,
-  DeleteProjectResponse,
-  ProjectTemplateListResponse,
-  UpdateProjectTemplateParams,
-  ProjectTemplateResponse,
-  PreviewProjectTemplateParams,
-  PreviewProjectTemplateResponse,
+  // Profile Templates
+  ProfileTemplate,
+  ProfileTemplateListResponse,
+  UpdateProfileTemplateParams,
+  ProfileTemplateResponse,
+  PreviewProfileTemplateParams,
+  PreviewProfileTemplateResponse,
 
   // Billing
   BillingPlan,

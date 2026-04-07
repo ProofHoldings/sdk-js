@@ -540,23 +540,10 @@ export interface RenderTemplateResponse {
 }
 
 // ============================================================================
-// Projects
+// Profile Templates
 // ============================================================================
 
-export interface ProjectBranding {
-  business_name?: string;
-  logo_url?: string;
-  primary_color?: string;
-  support_email?: string;
-}
-
-export interface ProjectCallbacks {
-  success_url?: string;
-  failure_url?: string;
-  cancel_url?: string;
-}
-
-export interface ProjectTemplate {
+export interface ProfileTemplate {
   channel: TemplateChannel;
   message_type: TemplateMessageType;
   subject?: string;
@@ -568,47 +555,12 @@ export interface ProjectTemplate {
   updated_at?: string;
 }
 
-export interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  is_default?: boolean;
-  branding: ProjectBranding;
-  callbacks?: ProjectCallbacks;
-  status: 'active' | 'archived';
-  template_count?: number;
-  created_at: string;
-  updated_at: string;
+export interface ProfileTemplateListResponse {
+  profile_id: string;
+  templates: ProfileTemplate[];
 }
 
-export interface ProjectListResponse {
-  data: Project[];
-}
-
-export interface CreateProjectParams {
-  name: string;
-  description?: string;
-  branding?: ProjectBranding;
-}
-
-export interface UpdateProjectParams {
-  name?: string;
-  description?: string;
-  branding?: ProjectBranding;
-  callbacks?: ProjectCallbacks;
-}
-
-export interface DeleteProjectResponse {
-  success: boolean;
-}
-
-export interface ProjectTemplateListResponse {
-  project_id: string;
-  branding: ProjectBranding;
-  templates: ProjectTemplate[];
-}
-
-export interface UpdateProjectTemplateParams {
+export interface UpdateProfileTemplateParams {
   body: string;
   subject?: string;
   button_text?: string;
@@ -616,7 +568,7 @@ export interface UpdateProjectTemplateParams {
   is_active?: boolean;
 }
 
-export interface ProjectTemplateResponse {
+export interface ProfileTemplateResponse {
   channel: TemplateChannel;
   message_type: TemplateMessageType;
   subject?: string;
@@ -627,7 +579,7 @@ export interface ProjectTemplateResponse {
   is_active: boolean;
 }
 
-export interface PreviewProjectTemplateParams {
+export interface PreviewProfileTemplateParams {
   channel: TemplateChannel;
   message_type: TemplateMessageType;
   body: string;
@@ -636,7 +588,7 @@ export interface PreviewProjectTemplateParams {
   button_url_template?: string;
 }
 
-export interface PreviewProjectTemplateResponse {
+export interface PreviewProfileTemplateResponse {
   preview: Record<string, unknown>;
   variables_used: string[];
 }
@@ -883,7 +835,6 @@ export type ApiKeyScope =
   | 'proofs:read' | 'proofs:*'
   | 'templates:read' | 'templates:write' | 'templates:*'
   | 'profiles:read' | 'profiles:write' | 'profiles:*'
-  | 'projects:read' | 'projects:write' | 'projects:*'
   | 'billing:read' | 'billing:write' | 'billing:*';
 
 export interface ApiKey {
@@ -1013,7 +964,6 @@ export interface Domain {
   status: string;
   verification_method?: VerificationMethod;
   provider?: string;
-  project_id?: string;
   verified_at?: string;
   created_at: string;
   updated_at: string;
@@ -1025,7 +975,6 @@ export interface DomainListResponse {
 
 export interface AddDomainParams {
   domain: string;
-  project_id?: string;
   for_email_sending?: boolean;
   verification_method?: VerificationMethod;
 }

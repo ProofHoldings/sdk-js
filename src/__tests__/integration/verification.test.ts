@@ -93,6 +93,6 @@ describeIntegration('JS SDK — Live API Integration', () => {
 
   it('should list profiles', async () => {
     const result = await client.profiles.list();
-    expect(Array.isArray(result)).toBe(true);
+    expect(Array.isArray(result.profiles)).toBe(true);
   });
 });

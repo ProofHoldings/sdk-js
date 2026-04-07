@@ -5,8 +5,7 @@ import { Proofs } from './resources/proofs.js';
 import { Sessions } from './resources/sessions.js';
 import { WebhookDeliveries } from './resources/webhook-deliveries.js';
 import { Templates } from './resources/templates.js';
-import { Profiles } from './resources/profiles.js';
-import { Projects } from './resources/projects.js';
+import { Profiles, ScopedProfile } from './resources/profiles.js';
 import { Billing } from './resources/billing.js';
 import { Phones } from './resources/phones.js';
 import { Emails } from './resources/emails.js';
@@ -38,8 +37,7 @@ export class Proof {
   public readonly sessions: Sessions;
   public readonly webhookDeliveries: WebhookDeliveries;
   public readonly templates: Templates;
-  public readonly profiles: Profiles;
-  public readonly projects: Projects;
+  public readonly profiles: Profiles & ((profileId: string) => ScopedProfile);
   public readonly billing: Billing;
   public readonly phones: Phones;
   public readonly emails: Emails;
@@ -87,8 +85,17 @@ export class Proof {
     this.sessions = new Sessions(http);
     this.webhookDeliveries = new WebhookDeliveries(http);
     this.templates = new Templates(http);
-    this.profiles = new Profiles(http);
-    this.projects = new Projects(http);
+    const profilesResource = new Profiles(http);
+    const profilesFn = (profileId: string) => new ScopedProfile(http, profileId);
+    const fn = profilesFn as unknown as Record<string, unknown>;
+    const src = profilesResource as unknown as Record<string, unknown>;
+    for (const key of Object.getOwnPropertyNames(Profiles.prototype)) {
+      if (key !== 'constructor') {
+        const val = src[key];
+        fn[key] = typeof val === 'function' ? val.bind(profilesResource) : val;
+      }
+    }
+    this.profiles = profilesFn as unknown as Profiles & ((profileId: string) => ScopedProfile);
     this.billing = new Billing(http);
     this.phones = new Phones(http);
     this.emails = new Emails(http);

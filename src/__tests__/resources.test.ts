@@ -5,8 +5,7 @@ import { Sessions } from '../resources/sessions.js';
 import { VerificationRequests } from '../resources/verification-requests.js';
 import { WebhookDeliveries } from '../resources/webhook-deliveries.js';
 import { Templates } from '../resources/templates.js';
-import { Profiles } from '../resources/profiles.js';
-import { Projects } from '../resources/projects.js';
+import { Profiles, ProfileTemplates, ScopedProfile } from '../resources/profiles.js';
 import { Billing } from '../resources/billing.js';
 import { Phones } from '../resources/phones.js';
 import { Emails } from '../resources/emails.js';
@@ -377,129 +376,76 @@ describe('Profiles resource', () => {
   });
 });
 
-describe('Projects resource', () => {
-  it('list sends GET to projects endpoint', async () => {
-    const http = mockHttp();
-    vi.mocked(http.get).mockResolvedValue({ data: [] });
-    const p = new Projects(http);
-
-    await p.list();
-
-    expect(http.get).toHaveBeenCalledWith('/api/v1/me/projects');
-  });
-
-  it('create sends POST with params', async () => {
-    const http = mockHttp();
-    vi.mocked(http.post).mockResolvedValue({ id: 'proj_123' });
-    const p = new Projects(http);
-
-    await p.create({ name: 'My Project' });
-
-    expect(http.post).toHaveBeenCalledWith('/api/v1/me/projects', { name: 'My Project' });
-  });
-
-  it('retrieve sends GET with projectId', async () => {
-    const http = mockHttp();
-    vi.mocked(http.get).mockResolvedValue({ id: 'proj_123' });
-    const p = new Projects(http);
-
-    await p.retrieve('proj_123');
-
-    expect(http.get).toHaveBeenCalledWith('/api/v1/me/projects/proj_123');
-  });
-
-  it('retrieve encodes special characters', async () => {
-    const http = mockHttp();
-    vi.mocked(http.get).mockResolvedValue({});
-    const p = new Projects(http);
-
-    await p.retrieve('proj/special&id');
-
-    expect(http.get).toHaveBeenCalledWith('/api/v1/me/projects/proj%2Fspecial%26id');
-  });
-
-  it('update sends PUT with params', async () => {
-    const http = mockHttp();
-    vi.mocked(http.put).mockResolvedValue({ id: 'proj_123' });
-    const p = new Projects(http);
-
-    await p.update('proj_123', { name: 'Updated' });
-
-    expect(http.put).toHaveBeenCalledWith('/api/v1/me/projects/proj_123', { name: 'Updated' });
-  });
-
-  it('delete sends DELETE with projectId', async () => {
-    const http = mockHttp();
-    vi.mocked(http.del).mockResolvedValue({ success: true });
-    const p = new Projects(http);
-
-    await p.delete('proj_123');
-
-    expect(http.del).toHaveBeenCalledWith('/api/v1/me/projects/proj_123');
-  });
-
-  it('listTemplates sends GET to templates endpoint', async () => {
+describe('ProfileTemplates resource (scoped)', () => {
+  it('list sends GET to profile templates endpoint', async () => {
     const http = mockHttp();
     vi.mocked(http.get).mockResolvedValue({ templates: [] });
-    const p = new Projects(http);
+    const t = new ProfileTemplates(http, 'prof_123');
 
-    await p.listTemplates('proj_123');
+    await t.list();
 
-    expect(http.get).toHaveBeenCalledWith('/api/v1/me/projects/proj_123/templates');
+    expect(http.get).toHaveBeenCalledWith('/api/v1/me/profiles/prof_123/templates');
   });
 
-  it('updateTemplate sends PUT with compound URL', async () => {
+  it('update sends PUT with compound URL', async () => {
     const http = mockHttp();
     vi.mocked(http.put).mockResolvedValue({ is_custom: true });
-    const p = new Projects(http);
+    const t = new ProfileTemplates(http, 'prof_123');
 
-    await p.updateTemplate('proj_123', 'email', 'verification_request', { body: 'Hello {{code}}' });
+    await t.update('email', 'verification_request', { body: 'Hello {{code}}' });
 
     expect(http.put).toHaveBeenCalledWith(
-      '/api/v1/me/projects/proj_123/templates/email/verification_request',
+      '/api/v1/me/profiles/prof_123/templates/email/verification_request',
       { body: 'Hello {{code}}' },
     );
   });
 
-  it('deleteTemplate sends DELETE with compound URL', async () => {
+  it('delete sends DELETE with compound URL', async () => {
     const http = mockHttp();
     vi.mocked(http.del).mockResolvedValue({ is_custom: false });
-    const p = new Projects(http);
+    const t = new ProfileTemplates(http, 'prof_123');
 
-    await p.deleteTemplate('proj_123', 'sms', '2fa_request');
+    await t.delete('sms', '2fa_request');
 
-    expect(http.del).toHaveBeenCalledWith('/api/v1/me/projects/proj_123/templates/sms/2fa_request');
+    expect(http.del).toHaveBeenCalledWith('/api/v1/me/profiles/prof_123/templates/sms/2fa_request');
   });
 
-  it('previewTemplate sends POST to preview endpoint', async () => {
+  it('preview sends POST to preview endpoint', async () => {
     const http = mockHttp();
     vi.mocked(http.post).mockResolvedValue({ preview: {} });
-    const p = new Projects(http);
+    const t = new ProfileTemplates(http, 'prof_123');
 
-    await p.previewTemplate('proj_123', {
+    await t.preview({
       channel: 'email',
       message_type: 'verification_request',
       body: 'Test {{code}}',
     });
 
-    expect(http.post).toHaveBeenCalledWith('/api/v1/me/projects/proj_123/templates/preview', {
+    expect(http.post).toHaveBeenCalledWith('/api/v1/me/profiles/prof_123/templates/preview', {
       channel: 'email',
       message_type: 'verification_request',
       body: 'Test {{code}}',
     });
   });
 
-  it('updateTemplate encodes all URL segments', async () => {
+  it('update encodes all URL segments', async () => {
     const http = mockHttp();
     vi.mocked(http.put).mockResolvedValue({});
-    const p = new Projects(http);
+    const t = new ProfileTemplates(http, 'prof/id');
 
-    await p.updateTemplate('proj/id', 'ch/an', 'ty/pe', { body: 'test' });
+    await t.update('ch/an', 'ty/pe', { body: 'test' });
 
     expect(http.put).toHaveBeenCalledWith(
-      '/api/v1/me/projects/proj%2Fid/templates/ch%2Fan/ty%2Fpe',
+      '/api/v1/me/profiles/prof%2Fid/templates/ch%2Fan/ty%2Fpe',
       { body: 'test' },
     );
+  });
+
+  it('ScopedProfile exposes templates sub-resource', () => {
+    const http = mockHttp();
+    const scoped = new ScopedProfile(http, 'prof_123');
+
+    expect(scoped.templates).toBeInstanceOf(ProfileTemplates);
   });
 });
 
