@@ -9,7 +9,7 @@ import {
   TimeoutError,
 } from '../errors.js';
 
-function createMockFetch(responses: Array<{ status: number; body?: object; headers?: Record<string, string> }>) {
+function createMockFetch(responses: Array<{ status: number; body?: object; headers?: Record<string, string>; rawBody?: Uint8Array }>) {
   let callIndex = 0;
   const fn = vi.fn(async () => {
     const resp = responses[callIndex] ?? responses[responses.length - 1];
@@ -21,6 +21,8 @@ function createMockFetch(responses: Array<{ status: number; body?: object; heade
         get: (key: string) => resp.headers?.[key] ?? null,
       },
       json: async () => resp.body ?? {},
+      arrayBuffer: async () =>
+        resp.rawBody ? resp.rawBody.buffer.slice(resp.rawBody.byteOffset, resp.rawBody.byteOffset + resp.rawBody.byteLength) : new ArrayBuffer(0),
     } as unknown as Response;
   });
   return fn;
@@ -96,6 +98,46 @@ describe('HttpClient', () => {
       const [url] = mockFetch.mock.calls[0];
       expect(url).toContain('status=verified');
       expect(url).not.toContain('type=');
+    });
+  });
+
+  describe('non-JSON responses', () => {
+    it('returns {data, content_type} envelope for binary 2xx responses', async () => {
+      const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+      const mockFetch = createMockFetch([{
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+        rawBody: png,
+      }]);
+      const client = makeClient(mockFetch);
+
+      const result = await client.get<{ data: Uint8Array; content_type: string }>('/api/v1/profiles/p/pr_1/avatar');
+
+      expect(result.content_type).toBe('image/png');
+      expect(result.data).toBeInstanceOf(Uint8Array);
+      expect(Array.from(result.data)).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    });
+
+    it('returns empty object for non-JSON 2xx with empty body', async () => {
+      const mockFetch = createMockFetch([{
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+        rawBody: new Uint8Array(0),
+      }]);
+      const client = makeClient(mockFetch);
+
+      const result = await client.get('/api/v1/some/endpoint');
+
+      expect(result).toEqual({});
+    });
+
+    it('keeps legacy JSON parse path when Content-Type header is missing', async () => {
+      const mockFetch = createMockFetch([{ status: 200, body: { id: 'x_1' } }]);
+      const client = makeClient(mockFetch);
+
+      const result = await client.get<{ id: string }>('/api/v1/whatever');
+
+      expect(result).toEqual({ id: 'x_1' });
     });
   });
 

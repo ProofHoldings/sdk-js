@@ -13,6 +13,13 @@ describe('Proof client', () => {
     expect(client.proofs).toBeDefined();
     expect(client.sessions).toBeDefined();
     expect(client.webhookDeliveries).toBeDefined();
+    expect(client.confirmations).toBeDefined();
+    expect(client.authSessions).toBeDefined();
+    expect(client.me).toBeDefined();
+    expect(client.hitl).toBeDefined();
+    expect(client.hitlChatIdDiscovery).toBeDefined();
+    expect(client.hitlKeys).toBeDefined();
+    expect(client.authorizations).toBeDefined();
   });
 
   it('accepts custom options', () => {

@@ -1,6 +1,6 @@
 {
-  "name": "@proof/sdk",
-  "version": "1.0.0",
+  "name": "@proof-holdings/sdk",
+  "version": "1.1.0",
   "description": "Official JavaScript/TypeScript SDK for the proof.holdings verification API",
   "keywords": [
     "proof-holdings",
@@ -36,6 +36,7 @@
   "files": [
     "dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
@@ -52,10 +53,14 @@
     "jose": "^5.2.0"
   },
   "devDependencies": {
+    "@types/node": "^20.11.0",
     "typescript": "^5.3.3",
     "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

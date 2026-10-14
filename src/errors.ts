@@ -135,3 +135,17 @@ export class PollingTimeoutError extends ProofError {
     this.name = 'PollingTimeoutError';
   }
 }
+
+export class ConfirmationDeniedError extends ProofError {
+  /** ID of the confirmation that triggered the error */
+  public readonly confirmationId: string;
+  /** Non-approved terminal status that triggered the error ('denied' or, for the createAndWait gate, 'expired') */
+  public readonly status: string;
+
+  constructor(confirmationId: string, status: string = 'denied') {
+    super(`Confirmation ${confirmationId} was ${status}`, 'confirmation_denied', 0);
+    this.name = 'ConfirmationDeniedError';
+    this.confirmationId = confirmationId;
+    this.status = status;
+  }
+}
