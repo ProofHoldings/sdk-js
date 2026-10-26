@@ -51,14 +51,24 @@ export class Profiles {
     return this.http.post<Profile>(`/api/v1/me/profiles/${encodeURIComponent(profileId)}/primary`);
   }
 
-  /** List a profile's message templates (custom and default) */
+  /**
+   * List a profile's message templates (custom and default)
+   *
+   * @deprecated The server retired this route (410 `endpoint_retired`). Use
+   * `templates.list({ profileId })`.
+   */
   listTemplates(profileId: string): Promise<ProfileTemplateListResponse> {
     return this.http.get<ProfileTemplateListResponse>(
       `/api/v1/me/profiles/${encodeURIComponent(profileId)}/templates`,
     );
   }
 
-  /** Create or update a profile template for a channel/message type */
+  /**
+   * Create or update a profile template for a channel/message type
+   *
+   * @deprecated The server retired this route (410 `endpoint_retired`). Use
+   * `templates.upsert(channel, messageType, content, { profileId })`.
+   */
   updateTemplate(
     profileId: string,
     channel: TemplateChannel,
@@ -71,7 +81,12 @@ export class Profiles {
     );
   }
 
-  /** Delete a profile template (resets to default) */
+  /**
+   * Delete a profile template (resets to default)
+   *
+   * @deprecated The server retired this route (410 `endpoint_retired`). Use
+   * `templates.delete(channel, messageType, { profileId })`.
+   */
   deleteTemplate(
     profileId: string,
     channel: TemplateChannel,
@@ -82,7 +97,12 @@ export class Profiles {
     );
   }
 
-  /** Preview a profile template with the profile's branding */
+  /**
+   * Preview a profile template with the profile's branding
+   *
+   * @deprecated The server retired this route (410 `endpoint_retired`). Use
+   * `templates.preview(params, { profileId })`.
+   */
   previewTemplate(
     profileId: string,
     params: ProfileTemplatePreviewParams,

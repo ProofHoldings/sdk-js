@@ -83,6 +83,8 @@ export interface ChallengeInstructions {
 export interface ProofToken {
   token: string;
   expires_at: string;
+  /** Present for SMS proofs: `standard`, or `degraded` once a later spoof check finds risk. */
+  confidence?: 'high' | 'standard' | 'degraded';
 }
 
 export interface Verification {
@@ -469,13 +471,34 @@ export interface RevokeResponse {
 // Sessions (Phone-First Flow)
 // ============================================================================
 
+/** One of our SMS numbers, for one region: an `sms` session's code is texted to it. */
+export interface SessionSmsNumber {
+  did: string;
+  label: string;
+  flag: string;
+  /** Opens the messaging app on this number with the message pre-filled. */
+  qr_code?: string;
+  qr_text?: string;
+}
+
 export interface Session {
   id: string;
   channel: SessionChannel;
   status: VerificationStatus;
   deep_link?: string;
   qr_code?: string;
+  qr_text?: string;
   instructions?: string;
+  /** `sms` only: the short code the person texts. */
+  sms_code?: string;
+  /** `sms` only: the message to send, as pre-filled in the links. */
+  sms_message?: string;
+  /** `sms` only: every number the code can be texted to, one per configured region. */
+  sms_dids?: {
+    americas: SessionSmsNumber;
+    europe?: SessionSmsNumber;
+    israel?: SessionSmsNumber;
+  };
   phone_number?: string;
   verified_at?: string;
   verification_id?: string;
@@ -486,9 +509,19 @@ export interface Session {
 
 export interface CreateSessionParams {
   channel: SessionChannel;
+  /**
+   * The sub-account (project) this session is for: its branding and templates are used. Omitted:
+   * the API key's sub-account, else your primary.
+   */
+  profile_id?: string;
   client_metadata?: Record<string, unknown>;
   context?: {
+    /**
+     * @deprecated Ignored by the server: the bot copy names the session's sub-account
+     * (`profile_id`, else the API key's, else the primary).
+     */
     business_name?: string;
+    /** Picks the bot's wording: log in, 2FA, account recovery, or plain verification (the default). */
     action?: 'login' | '2fa' | 'verification' | 'recovery';
   };
 }
@@ -1269,6 +1302,9 @@ export interface CreateAuthorizationParams {
   phone?: string;
   channel?: AuthorizationChannel;
   scope?: AuthorizationScope;
+  /**
+   * @deprecated Ignored by the server: the consent message names the approval setup's sub-account.
+   */
   business_name?: string;
   business_profile_id?: string;
   /** Seconds from now until the authorization expires. */
@@ -1357,10 +1393,23 @@ export interface TemplateContent {
   button_url_template?: string;
 }
 
+/**
+ * Which project (sub-account) a templates call acts on. Templates exist per project only.
+ *
+ * Omitted: a project-bound API key uses its own project, any other caller the primary project. A
+ * project-bound key naming a different project is refused (403 `profile_mismatch`).
+ */
+export interface TemplateProjectOptions {
+  /** The project's id, sent as the `profile_id` query parameter. */
+  profileId?: string;
+}
+
 /** A message template (custom or default). */
 export interface Template extends TemplateContent {
   /** Present on custom templates only */
   id?: string;
+  /** The project the custom template belongs to. Present on custom templates only */
+  profile_id?: string | null;
   channel: TemplateChannel;
   message_type: TemplateMessageType;
   is_active?: boolean;
@@ -1376,6 +1425,8 @@ export interface TemplateVariable {
 
 /** Response from `GET /api/v1/templates`. */
 export interface TemplateListResponse {
+  /** The project whose templates are listed */
+  profile_id: string | null;
   custom_templates: Template[];
   available_channels: TemplateChannel[];
   available_message_types: TemplateMessageType[];
@@ -1390,6 +1441,10 @@ export interface TemplateDefaultsResponse {
 /** Response from `GET /api/v1/templates/:channel/:messageType`. */
 export interface TemplateGetResponse {
   is_custom: boolean;
+  /** `project`: the project's own template; `default`: the platform default it falls back to */
+  scope: 'project' | 'default';
+  /** The project the template was resolved for */
+  profile_id: string | null;
   template: Template;
 }
 
@@ -1484,6 +1539,10 @@ export interface Profile {
   show_proof_channels?: boolean;
   /** The owner's switch for the public Delegations section (default true). */
   show_delegations?: boolean;
+  /** Theme of this project's emails; null when unset (read as `dark`). Returned to the owner. */
+  email_theme?: 'dark' | 'light' | null;
+  /** Support address shown in this project's messages as `{{support_email}}`. Returned to the owner. */
+  support_email?: string | null;
   view_count?: number;
   created_at: string;
   updated_at: string;
@@ -1499,6 +1558,10 @@ export interface CreateProfileParams {
   is_public?: boolean;
   is_primary?: boolean;
   theme?: ProfileTheme;
+  /** Theme of the HTML emails sent for this project. Unset reads as `dark`. */
+  email_theme?: 'dark' | 'light';
+  /** Support address shown in this project's messages as `{{support_email}}`. */
+  support_email?: string;
 }
 
 /** Body accepted by `PATCH /api/v1/me/profiles/:profileId`. */
@@ -1516,6 +1579,10 @@ export interface UpdateProfileParams {
   show_delegations?: boolean;
   theme?: ProfileTheme;
   custom_links?: CustomLink[];
+  /** Theme of the HTML emails sent for this project. Unset reads as `dark`. */
+  email_theme?: 'dark' | 'light';
+  /** Support address shown in this project's messages as `{{support_email}}`; `null` clears it. */
+  support_email?: string | null;
 }
 
 /** Response from `GET /api/v1/me/profiles`. */

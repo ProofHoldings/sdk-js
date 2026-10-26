@@ -146,6 +146,20 @@ describe('Sessions resource', () => {
     expect(http.post).toHaveBeenCalledWith('/api/v1/sessions', { channel: 'telegram' });
   });
 
+  it('create sends an sms session for a named sub-account as given', async () => {
+    const http = mockHttp();
+    vi.mocked(http.post).mockResolvedValue({ id: 'sess_123', channel: 'sms' });
+    const s = new Sessions(http);
+
+    await s.create({ channel: 'sms', profile_id: '507f1f77bcf86cd799439011', context: { action: 'login' } });
+
+    expect(http.post).toHaveBeenCalledWith('/api/v1/sessions', {
+      channel: 'sms',
+      profile_id: '507f1f77bcf86cd799439011',
+      context: { action: 'login' },
+    });
+  });
+
   it('retrieve sends GET', async () => {
     const http = mockHttp();
     vi.mocked(http.get).mockResolvedValue({ id: 'ses_123', status: 'pending' });
@@ -418,7 +432,7 @@ describe('Templates resource', () => {
 
     await t.list();
 
-    expect(http.get).toHaveBeenCalledWith('/api/v1/templates');
+    expect(http.get).toHaveBeenCalledWith('/api/v1/templates', undefined);
   });
 
   it('getDefaults sends GET to defaults endpoint', async () => {
@@ -438,12 +452,12 @@ describe('Templates resource', () => {
 
     await t.retrieve('telegram', 'confirmation_request');
 
-    expect(http.get).toHaveBeenCalledWith('/api/v1/templates/telegram/confirmation_request');
+    expect(http.get).toHaveBeenCalledWith('/api/v1/templates/telegram/confirmation_request', undefined);
   });
 
   it('upsert sends PUT with template content body', async () => {
     const http = mockHttp();
-    vi.mocked(http.put).mockResolvedValue({ success: true, template: {} });
+    vi.mocked(http.request).mockResolvedValue({ success: true, template: {} });
     const t = new Templates(http);
 
     await t.upsert('whatsapp', 'verification_request', {
@@ -451,48 +465,115 @@ describe('Templates resource', () => {
       button_text: 'Verify',
     });
 
-    expect(http.put).toHaveBeenCalledWith('/api/v1/templates/whatsapp/verification_request', {
-      body: 'Your code is {{code}}',
-      button_text: 'Verify',
+    expect(http.request).toHaveBeenCalledWith('PUT', '/api/v1/templates/whatsapp/verification_request', {
+      body: { body: 'Your code is {{code}}', button_text: 'Verify' },
+      query: undefined,
     });
   });
 
   it('delete sends DELETE to template endpoint', async () => {
     const http = mockHttp();
-    vi.mocked(http.del).mockResolvedValue({ success: true, message: 'Template reset to default' });
+    vi.mocked(http.request).mockResolvedValue({ success: true, message: 'Template reset to default' });
     const t = new Templates(http);
 
     await t.delete('email', 'login_request');
 
-    expect(http.del).toHaveBeenCalledWith('/api/v1/templates/email/login_request');
+    expect(http.request).toHaveBeenCalledWith('DELETE', '/api/v1/templates/email/login_request', { query: undefined });
   });
 
   it('preview sends POST with channel, message_type, and content', async () => {
     const http = mockHttp();
-    vi.mocked(http.post).mockResolvedValue({ preview: { body: 'x' }, validation_errors: [], is_valid: true });
+    vi.mocked(http.request).mockResolvedValue({ preview: { body: 'x' }, validation_errors: [], is_valid: true });
     const t = new Templates(http);
 
     await t.preview({ channel: 'telegram', message_type: 'confirmation_request', body: 'Hi {{business_name}}' });
 
-    expect(http.post).toHaveBeenCalledWith('/api/v1/templates/preview', {
-      channel: 'telegram',
-      message_type: 'confirmation_request',
-      body: 'Hi {{business_name}}',
+    expect(http.request).toHaveBeenCalledWith('POST', '/api/v1/templates/preview', {
+      body: { channel: 'telegram', message_type: 'confirmation_request', body: 'Hi {{business_name}}' },
+      query: undefined,
     });
   });
 
   it('render sends POST with variables', async () => {
     const http = mockHttp();
-    vi.mocked(http.post).mockResolvedValue({ rendered: { body: 'Code: 123456' } });
+    vi.mocked(http.request).mockResolvedValue({ rendered: { body: 'Code: 123456' } });
     const t = new Templates(http);
 
     await t.render({ channel: 'sms', message_type: 'verification_request', variables: { code: '123456' } });
 
-    expect(http.post).toHaveBeenCalledWith('/api/v1/templates/render', {
-      channel: 'sms',
-      message_type: 'verification_request',
-      variables: { code: '123456' },
+    expect(http.request).toHaveBeenCalledWith('POST', '/api/v1/templates/render', {
+      body: { channel: 'sms', message_type: 'verification_request', variables: { code: '123456' } },
+      query: undefined,
     });
+  });
+});
+
+describe('Templates resource — project (sub-account) id', () => {
+  const PROJECT = '64b7f0c2a1d3e4f5a6b7c8d9';
+
+  /** A real HttpClient over a fetch that records what goes on the wire and answers `{}`. */
+  function recordingTemplates() {
+    const sent: Array<{ method: string; url: URL; body: unknown }> = [];
+    const fetch = vi.fn(async (url: string, init: RequestInit) => {
+      sent.push({
+        method: String(init.method),
+        url: new URL(url),
+        body: init.body === undefined ? undefined : JSON.parse(String(init.body)),
+      });
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    const http = new HttpClient({
+      apiKey: 'pk_test_123',
+      baseUrl: 'https://api.example.com',
+      timeout: 5000,
+      maxRetries: 0,
+      fetch: fetch as unknown as typeof globalThis.fetch,
+    });
+    return { t: new Templates(http), sent };
+  }
+
+  // Every templates operation that takes a project (all but getDefaults): how to call it with an
+  // optional project, and what it must send apart from the project.
+  type Call = (t: Templates, options?: { profileId: string }) => Promise<unknown>;
+  const operations: Array<[string, Call, string, string, unknown]> = [
+    ['list', (t, o) => t.list(o), 'GET', '/api/v1/templates', undefined],
+    ['retrieve', (t, o) => t.retrieve('email', 'login_request', o), 'GET', '/api/v1/templates/email/login_request', undefined],
+    [
+      'upsert',
+      (t, o) => t.upsert('email', 'login_request', { body: 'Sign in to {{business_name}}' }, o),
+      'PUT', '/api/v1/templates/email/login_request', { body: 'Sign in to {{business_name}}' },
+    ],
+    ['delete', (t, o) => t.delete('email', 'login_request', o), 'DELETE', '/api/v1/templates/email/login_request', undefined],
+    [
+      'preview',
+      (t, o) => t.preview({ channel: 'sms', message_type: '2fa_request', body: 'Code {{code}}' }, o),
+      'POST', '/api/v1/templates/preview', { channel: 'sms', message_type: '2fa_request', body: 'Code {{code}}' },
+    ],
+    [
+      'render',
+      (t, o) => t.render({ channel: 'sms', message_type: '2fa_request' }, o),
+      'POST', '/api/v1/templates/render', { channel: 'sms', message_type: '2fa_request' },
+    ],
+  ];
+
+  it.each(operations)('%s sends the project as profile_id', async (_name, call, method, pathname, body) => {
+    const { t, sent } = recordingTemplates();
+
+    await call(t, { profileId: PROJECT });
+
+    expect(sent).toHaveLength(1);
+    expect({ method: sent[0].method, pathname: sent[0].url.pathname, body: sent[0].body }).toEqual({ method, pathname, body });
+    expect([...sent[0].url.searchParams.entries()]).toEqual([['profile_id', PROJECT]]);
+  });
+
+  it.each(operations)('%s sends no query string without a project', async (_name, call, method, pathname, body) => {
+    const { t, sent } = recordingTemplates();
+
+    await call(t);
+
+    expect(sent).toHaveLength(1);
+    expect({ method: sent[0].method, pathname: sent[0].url.pathname, body: sent[0].body }).toEqual({ method, pathname, body });
+    expect(sent[0].url.search).toBe('');
   });
 });
 

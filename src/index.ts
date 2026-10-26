@@ -120,6 +120,7 @@ export type {
   VerificationChannel,
   VerificationStatus,
   SessionChannel,
+  SessionSmsNumber,
   VerificationRequestStatus,
   ActionType,
 
@@ -252,6 +253,7 @@ export type {
   TemplateChannel,
   TemplateMessageType,
   TemplateContent,
+  TemplateProjectOptions,
   Template,
   TemplateVariable,
   TemplateListResponse,
