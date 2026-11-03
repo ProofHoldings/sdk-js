@@ -74,6 +74,12 @@ describe('ProofError.fromResponse', () => {
     expect(err.statusCode).toBe(502);
   });
 
+  it('maps a 410 endpoint_retired to a plain ProofError, as in 1.2.0', () => {
+    const err = ProofError.fromResponse(410, { code: 'endpoint_retired', message: 'Gone', request_id: 'req_1' });
+    expect(err.constructor).toBe(ProofError);
+    expect(err).toMatchObject({ name: 'ProofError', code: 'endpoint_retired', statusCode: 410, message: 'Gone', requestId: 'req_1' });
+  });
+
   it('uses defaults when no error body provided', () => {
     const err = ProofError.fromResponse(418);
     expect(err.code).toBe('http_418');

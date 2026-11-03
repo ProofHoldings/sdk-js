@@ -10,6 +10,7 @@ import type {
   ProfileTemplateUpdateParams,
   ProfileTemplatePreviewParams,
   ProfileTemplatePreviewResponse,
+  CallbackSecret,
   TemplateChannel,
   TemplateMessageType,
 } from '../types.js';
@@ -52,10 +53,24 @@ export class Profiles {
   }
 
   /**
+   * Rotate a sub-account's callback signing secret — the secret that signs (`X-Proof-Signature`)
+   * every `callback_url` delivery of that sub-account's verification requests. The new secret is
+   * returned in this response only (rotation is the one way an API key obtains it) — store it now.
+   * Callback deliveries already queued keep the secret they were signed with. Needs the
+   * `webhooks:write` scope; a key bound to a sub-account may rotate only its own.
+   */
+  rotateCallbackSecret(profileId: string): Promise<CallbackSecret> {
+    return this.http.post<CallbackSecret>(
+      `/api/v1/profiles/profiles/${encodeURIComponent(profileId)}/callback-secret/rotate`,
+    );
+  }
+
+  /**
    * List a profile's message templates (custom and default)
    *
    * @deprecated The server retired this route (410 `endpoint_retired`). Use
    * `templates.list({ profileId })`.
+   * Removed in the next major — see `sdks/shared/NEXT_MAJOR.md`.
    */
   listTemplates(profileId: string): Promise<ProfileTemplateListResponse> {
     return this.http.get<ProfileTemplateListResponse>(
@@ -68,6 +83,7 @@ export class Profiles {
    *
    * @deprecated The server retired this route (410 `endpoint_retired`). Use
    * `templates.upsert(channel, messageType, content, { profileId })`.
+   * Removed in the next major — see `sdks/shared/NEXT_MAJOR.md`.
    */
   updateTemplate(
     profileId: string,
@@ -86,6 +102,7 @@ export class Profiles {
    *
    * @deprecated The server retired this route (410 `endpoint_retired`). Use
    * `templates.delete(channel, messageType, { profileId })`.
+   * Removed in the next major — see `sdks/shared/NEXT_MAJOR.md`.
    */
   deleteTemplate(
     profileId: string,
@@ -102,6 +119,7 @@ export class Profiles {
    *
    * @deprecated The server retired this route (410 `endpoint_retired`). Use
    * `templates.preview(params, { profileId })`.
+   * Removed in the next major — see `sdks/shared/NEXT_MAJOR.md`.
    */
   previewTemplate(
     profileId: string,

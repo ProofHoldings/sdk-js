@@ -55,6 +55,24 @@ const ORIGIN_FIXTURE = JSON.parse(
   cases: Array<{ name: string; uri: string; sdk: 'accepted' | 'rejected'; uri_origin?: string }>;
 };
 
+const DECISION_FIXTURE = JSON.parse(
+  readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../../shared/fixtures/decision_claims.json'),
+    'utf-8',
+  ),
+) as {
+  cases: Array<{ name: string; claims: Record<string, string>; payload: Record<string, string> }>;
+};
+
+const PROOF_CLAIMS_FIXTURE = JSON.parse(
+  readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../../shared/fixtures/proof_claims.json'),
+    'utf-8',
+  ),
+) as {
+  cases: Array<{ name: string; with_exp: boolean; claims: Record<string, unknown>; valid: boolean }>;
+};
+
 const KID = 'test-key-1';
 
 let baseUrl: string;
@@ -90,6 +108,7 @@ async function mintProof(options?: {
   statusList?: { idx: number; uri: string } | null;
   key?: jose.KeyLike;
   issuer?: string;
+  extra?: Record<string, unknown>;
 }): Promise<string> {
   const claims: Record<string, unknown> = {
     type: 'phone',
@@ -97,6 +116,7 @@ async function mintProof(options?: {
     identifier_hash: 'abc123',
     verified_at: new Date().toISOString(),
     user_id: 'usr_1',
+    ...options?.extra,
   };
   if (options?.statusList !== null) {
     claims.status = { status_list: options?.statusList ?? { idx: 1, uri: statusListUrl } };
@@ -473,6 +493,48 @@ describe('verifyOffline — the shared slot fixture', () => {
       });
     }
   });
+});
+
+describe('verifyOffline — the shared decision-claims fixture', () => {
+  it.each(DECISION_FIXTURE.cases.map((c) => [c.name, c] as const))(
+    'returns the decider claims of %s',
+    async (_name, c) => {
+      const { proofs } = harness();
+
+      const result = await proofs.verifyOffline(await mintProof({ statusList: null, extra: c.claims }));
+
+      expect(result.valid).toBe(true);
+      const { decision, decided_by, authorization_id, signer_kid } = result.payload!;
+      expect({ decision, decided_by, authorization_id, signer_kid }).toEqual({
+        decision: c.payload.decision,
+        decided_by: c.payload.decided_by,
+        authorization_id: c.payload.authorization_id,
+        signer_kid: c.payload.signer_kid,
+      });
+    },
+  );
+});
+
+describe('verifyOffline — the shared proof-claims fixture', () => {
+  it.each(PROOF_CLAIMS_FIXTURE.cases.map((c) => [c.name, c] as const))(
+    'answers %s as the issuer would',
+    async (_name, c) => {
+      const { proofs } = harness();
+      const builder = new jose.SignJWT(c.claims)
+        .setProtectedHeader({ alg: 'ES256', kid: KID })
+        .setIssuer('proof.holdings')
+        .setIssuedAt();
+      if (c.with_exp) builder.setExpirationTime('1h');
+
+      const result = await proofs.verifyOffline(await builder.sign(privateKey));
+
+      expect(result.valid).toBe(c.valid);
+      if (!c.valid) {
+        expect(result.reason).toBe('invalid');
+        expect(result.payload).toBeUndefined();
+      }
+    },
+  );
 });
 
 describe('verifyOffline — the status-list cache', () => {

@@ -15,19 +15,19 @@ import type {
   TemplateRenderResponse,
 } from '../types.js';
 
-/** The `profile_id` query naming the project, or nothing when the caller named none. */
+/** The `profile_id` query naming the sub-account, or nothing when the caller named none. */
 function projectQuery(options?: TemplateProjectOptions): { profile_id: string } | undefined {
   return options?.profileId === undefined ? undefined : { profile_id: options.profileId };
 }
 
 /**
- * Message templates. Templates exist per project (sub-account) only: every method but
- * `getDefaults` takes an optional `{ profileId }` naming the project, sent as `profile_id`.
+ * Message templates. Templates exist per sub-account only: every method but
+ * `getDefaults` takes an optional `{ profileId }` naming the sub-account, sent as `profile_id`.
  */
 export class Templates {
   constructor(private readonly http: HttpClient) {}
 
-  /** List the project's custom templates plus available channels, message types, and variables */
+  /** List the sub-account's custom templates plus available channels, message types, and variables */
   list(options?: TemplateProjectOptions): Promise<TemplateListResponse> {
     return this.http.get<TemplateListResponse>('/api/v1/templates', projectQuery(options));
   }
@@ -37,7 +37,7 @@ export class Templates {
     return this.http.get<TemplateDefaultsResponse>('/api/v1/templates/defaults');
   }
 
-  /** Get a specific template (the project's own if set, default otherwise) */
+  /** Get a specific template (the sub-account's own if set, default otherwise) */
   retrieve(channel: TemplateChannel, messageType: TemplateMessageType, options?: TemplateProjectOptions): Promise<TemplateGetResponse> {
     return this.http.get<TemplateGetResponse>(
       `/api/v1/templates/${encodeURIComponent(channel)}/${encodeURIComponent(messageType)}`,
@@ -45,7 +45,7 @@ export class Templates {
     );
   }
 
-  /** Create or update the project's custom template */
+  /** Create or update the sub-account's custom template */
   upsert(
     channel: TemplateChannel,
     messageType: TemplateMessageType,
@@ -59,7 +59,7 @@ export class Templates {
     );
   }
 
-  /** Delete the project's custom template (resets to default; 404 if no custom template exists) */
+  /** Delete the sub-account's custom template (resets to default; 404 if no custom template exists) */
   delete(channel: TemplateChannel, messageType: TemplateMessageType, options?: TemplateProjectOptions): Promise<TemplateDeleteResponse> {
     return this.http.request<TemplateDeleteResponse>(
       'DELETE',
@@ -68,7 +68,7 @@ export class Templates {
     );
   }
 
-  /** Preview a template with sample data and the project's branding */
+  /** Preview a template with sample data and the sub-account's branding */
   preview(params: TemplatePreviewParams, options?: TemplateProjectOptions): Promise<TemplatePreviewResponse> {
     return this.http.request<TemplatePreviewResponse>(
       'POST',
@@ -77,7 +77,7 @@ export class Templates {
     );
   }
 
-  /** Render the project's template with provided variables (for testing) */
+  /** Render the sub-account's template with provided variables (for testing) */
   render(params: TemplateRenderParams, options?: TemplateProjectOptions): Promise<TemplateRenderResponse> {
     return this.http.request<TemplateRenderResponse>(
       'POST',

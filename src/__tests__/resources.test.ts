@@ -381,6 +381,16 @@ describe('HitlChatIdDiscovery resource', () => {
 });
 
 describe('Confirmations resource', () => {
+  it('list sends profile_id to narrow to one sub-account', async () => {
+    const http = mockHttp();
+    vi.mocked(http.get).mockResolvedValue({ data: [], pagination: { page: 1, limit: 20, total: 0, total_pages: 0 } });
+    const c = new Confirmations(http);
+
+    await c.list({ profile_id: '507f1f77bcf86cd799439011', status: 'pending' });
+
+    expect(http.get).toHaveBeenCalledWith('/api/v1/confirmations', { profile_id: '507f1f77bcf86cd799439011', status: 'pending' });
+  });
+
   it('approvalLink sends POST with ID', async () => {
     const http = mockHttp();
     vi.mocked(http.post).mockResolvedValue({ approval_url: 'https://api.example.com/resolve?t=x' });
@@ -469,6 +479,22 @@ describe('Templates resource', () => {
       body: { body: 'Your code is {{code}}', button_text: 'Verify' },
       query: undefined,
     });
+  });
+
+  it('list, upsert and preview return a response without sendable or warnings as-is (an API that predates them)', async () => {
+    const http = mockHttp();
+    vi.mocked(http.get).mockResolvedValue({ custom_templates: [], available_channels: [] });
+    vi.mocked(http.request).mockResolvedValueOnce({ success: true, template: {} });
+    vi.mocked(http.request).mockResolvedValueOnce({ preview: { body: 'x' }, validation_errors: [], is_valid: true });
+    const t = new Templates(http);
+
+    const listed = await t.list();
+    const saved = await t.upsert('telegram', 'verification_request', { body: 'Hi {{business_name}}' });
+    const previewed = await t.preview({ channel: 'telegram', message_type: 'verification_request', body: 'Hi' });
+
+    expect(listed).toEqual({ custom_templates: [], available_channels: [] });
+    expect(saved).toEqual({ success: true, template: {} });
+    expect(previewed).toEqual({ preview: { body: 'x' }, validation_errors: [], is_valid: true });
   });
 
   it('delete sends DELETE to template endpoint', async () => {

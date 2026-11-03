@@ -7,7 +7,9 @@ import { defineConfig } from 'vitest/config';
 // on every pull request to the monorepo.
 const HAS_SHARED_FIXTURES = existsSync(new URL('../shared/fixtures', import.meta.url));
 const NEEDS_SHARED_FIXTURES = [
+  'src/__tests__/billing.test.ts',
   'src/__tests__/credentials-fixtures.test.ts',
+  'src/__tests__/decision-signature-fixtures.test.ts',
   'src/__tests__/jwks-rotation-fixtures.test.ts',
   'src/__tests__/offline-revocation.test.ts',
   'tests/integration/resources.test.ts',

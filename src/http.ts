@@ -1,4 +1,4 @@
-import { ProofError, NetworkError, TimeoutError } from './errors.js';
+import { ProofError, NetworkError, TimeoutError, BILLING_UNAVAILABLE } from './errors.js';
 import type { ApiError } from './types.js';
 import { VERSION } from './version.js';
 
@@ -101,8 +101,11 @@ export class HttpClient {
           continue;
         }
 
-        // Server errors — retry with backoff
+        // Server errors — retry with backoff, except a refusal that asking again cannot change
         if (response.status >= 500 && attempt < this.maxRetries) {
+          const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+          const apiError = body.error as ApiError | undefined;
+          if (apiError?.code === BILLING_UNAVAILABLE) throw ProofError.fromResponse(response.status, apiError);
           await this.sleep(this.backoff(attempt));
           continue;
         }

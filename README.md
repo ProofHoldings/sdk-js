@@ -173,6 +173,34 @@ const completed = await proof.sessions.waitForCompletion(session.id);
 console.log('Phone:', completed.phone_number);
 ```
 
+### Webhook Endpoints
+
+An account can deliver events to several endpoints, each with its own subscription (`events`:
+exact types, `family.*` wildcards or `*`), reach (`scope: 'all'`, or `'selected'` with
+`profile_ids`) and signing secret. The secret is returned **once** — by `create` and by
+`rotateSecret` — and never by `list`, `retrieve` or `update`; store it when you receive it.
+
+```typescript
+const endpoint = await proof.webhookEndpoints.create({
+  url: 'https://example.com/webhooks/proof',
+  events: ['verification_request.*', 'proof.revoked'],
+  scope: 'all',
+});
+saveSecret(endpoint.id, endpoint.secret); // shown only now
+
+const { data } = await proof.webhookEndpoints.list();
+await proof.webhookEndpoints.update(endpoint.id, { status: 'disabled' });
+const rotated = await proof.webhookEndpoints.rotateSecret(endpoint.id); // new secret, once
+await proof.webhookEndpoints.delete(endpoint.id);
+```
+
+A sub-account's `callback_url` deliveries are signed with that sub-account's callback secret. Rotate
+it to obtain a new one (returned once):
+
+```typescript
+const { secret } = await proof.profiles.rotateCallbackSecret(profileId);
+```
+
 ### Webhook Deliveries
 
 ```typescript

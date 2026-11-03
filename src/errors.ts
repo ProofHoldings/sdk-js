@@ -30,6 +30,10 @@ export class ProofError extends Error {
 
     switch (statusCode) {
       case 400: return new ValidationError(message, code, details, requestId);
+      case 402:
+        return error
+          ? BalanceEmptyError.fromApiError(error)
+          : new BalanceEmptyError(message, code, details, requestId);
       case 401: return new AuthenticationError(message, code, details, requestId);
       case 403: return new ForbiddenError(message, code, details, requestId);
       case 404: return new NotFoundError(message, code, details, requestId);
@@ -39,6 +43,7 @@ export class ProofError extends Error {
           ? RateLimitError.fromApiError(error)
           : new RateLimitError(message, code, details, requestId);
       default:
+        if (code === BILLING_UNAVAILABLE) return new BillingUnavailableError(message, statusCode, details, requestId);
         if (statusCode >= 500) return new ServerError(message, code, statusCode, details, requestId);
         return new ProofError(message, code, statusCode, details, requestId);
     }
@@ -112,6 +117,61 @@ export class ServerError extends ProofError {
   constructor(message: string, code: string, statusCode: number = 500, details?: unknown, requestId?: string) {
     super(message, code, statusCode, details, requestId);
     this.name = 'ServerError';
+  }
+}
+
+/** The code of the billing kill switch's refusal: checkout, portal and top-up while billing is not live. */
+export const BILLING_UNAVAILABLE = 'billing_unavailable';
+
+/**
+ * `503 billing_unavailable` — billing is not live, so checkout, the billing portal and top-ups are
+ * refused. A ServerError, so an existing `instanceof ServerError` still matches it; unlike other 5xx
+ * answers it is never retried, because asking again cannot change it.
+ */
+export class BillingUnavailableError extends ServerError {
+  constructor(message: string, statusCode: number = 503, details?: unknown, requestId?: string) {
+    super(message, BILLING_UNAVAILABLE, statusCode, details, requestId);
+    this.name = 'BillingUnavailableError';
+  }
+}
+
+/**
+ * `402 balance_empty` — the account has used the proofs its plan includes this month and its prepaid
+ * balance is at or below zero, so new proof requests are refused until it tops up. Any method that
+ * creates a proof request can raise it, once billing is live; proofs already issued keep working.
+ */
+export class BalanceEmptyError extends ProofError {
+  /** Where the owner tops up the balance */
+  public readonly topUpUrl?: string;
+  /** This period's production proofs */
+  public readonly used?: number;
+  /** Proofs the plan includes per period */
+  public readonly included?: number;
+  /** The prepaid balance in euro cents, at or below zero */
+  public readonly balance?: number;
+
+  constructor(
+    message: string,
+    code: string,
+    details?: unknown,
+    requestId?: string,
+    fields: { topUpUrl?: string; used?: number; included?: number; balance?: number } = {},
+  ) {
+    super(message, code, 402, details, requestId);
+    this.name = 'BalanceEmptyError';
+    this.topUpUrl = fields.topUpUrl;
+    this.used = fields.used;
+    this.included = fields.included;
+    this.balance = fields.balance;
+  }
+
+  static fromApiError(error: ApiError): BalanceEmptyError {
+    return new BalanceEmptyError(error.message, error.code, error.details, error.request_id, {
+      topUpUrl: error.top_up_url,
+      used: error.used,
+      included: error.included,
+      balance: error.balance,
+    });
   }
 }
 

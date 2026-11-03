@@ -51,7 +51,8 @@ describe('Verifications.waitForCompletion', () => {
   });
 
   it('recognizes all verification terminal states', async () => {
-    for (const status of ['verified', 'failed', 'expired', 'revoked']) {
+    // `cancelled`: the losing sibling of a first-win multi-channel group.
+    for (const status of ['verified', 'failed', 'expired', 'revoked', 'cancelled']) {
       const http = mockHttp();
       vi.mocked(http.get).mockResolvedValue({ id: 'ver_1', status });
       const v = new Verifications(http);

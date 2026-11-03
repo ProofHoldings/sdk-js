@@ -54,6 +54,7 @@ export type {
   ConfirmationStreamConnected,
   ConfirmationStreamUpdate,
   ConfirmationStreamEvent,
+  DecisionSignatureOutcome,
 } from './resources/confirmations.js';
 export type {
   VerificationStreamConnected,
@@ -97,6 +98,12 @@ export { Circles } from './resources/circles.js';
 // Delegations resource (Proof of Delegation: domain → typed artifact)
 export { Delegations } from './resources/delegations.js';
 
+// Webhook endpoints resource (per-endpoint subscriptions, scopes and signing secrets)
+export { WebhookEndpoints } from './resources/webhook-endpoints.js';
+
+// Billing resource (subscription, checkout, portal, prepaid balance)
+export { Billing } from './resources/billing.js';
+
 // Error classes
 export {
   ProofError,
@@ -111,6 +118,8 @@ export {
   TimeoutError,
   PollingTimeoutError,
   ConfirmationDeniedError,
+  BalanceEmptyError,
+  BillingUnavailableError,
 } from './errors.js';
 
 // Types
@@ -136,6 +145,7 @@ export type {
   CreateVerificationParams,
   ListVerificationsParams,
   ResendResponse,
+  SubmitChallengeResponse,
   TestVerifyResponse,
   StartDomainVerificationParams,
   DomainVerification,
@@ -180,6 +190,16 @@ export type {
   WebhookDeliveryStats,
   WebhookPagination,
   ListWebhookDeliveriesParams,
+
+  // Webhook Endpoints
+  WebhookEndpointScope,
+  WebhookEndpointStatus,
+  WebhookEndpoint,
+  WebhookEndpointWithSecret,
+  WebhookEndpointList,
+  CreateWebhookEndpointParams,
+  UpdateWebhookEndpointParams,
+  CallbackSecret,
 
   // HITL Configs
   HitlStatus,
@@ -256,6 +276,8 @@ export type {
   TemplateProjectOptions,
   Template,
   TemplateVariable,
+  TemplateSendablePair,
+  TemplateSendWarning,
   TemplateListResponse,
   TemplateDefaultsResponse,
   TemplateGetResponse,
@@ -270,6 +292,8 @@ export type {
   // Profiles
   ProfileTheme,
   CustomLink,
+  ProfileOwnerLink,
+  PublicProofItem,
   Profile,
   CreateProfileParams,
   UpdateProfileParams,
@@ -283,6 +307,8 @@ export type {
 
   // Public Profiles
   PublicProfileProof,
+  PublicProfileLeadingProof,
+  ProofOrder,
   PublicProfileLink,
   PublicProfileView,
   PublicProfileDelegation,
@@ -307,6 +333,22 @@ export type {
   ProofOptions,
   WaitOptions,
   ConfirmAndWaitOptions,
+  // Billing
+  BillingPlan,
+  SubscriptionStatus,
+  SubscriptionResponse,
+  CheckoutRequest,
+  CheckoutResponse,
+  PortalRequest,
+  PortalResponse,
+  TopUpAmount,
+  TopUpRequest,
+  TopUpResponse,
+  AutoTopUpRequest,
+  BalanceResponse,
+  LedgerEntry,
+  LedgerListResponse,
+  BalanceLedgerParams,
 } from './types.js';
 
 // HITL E2E encryption crypto helpers

@@ -8,6 +8,7 @@ import type {
   PaginatedList,
   WaitOptions,
   ResendResponse,
+  SubmitChallengeResponse,
   TestVerifyResponse,
   StartDomainVerificationParams,
   DomainVerification,
@@ -33,7 +34,8 @@ export interface VerificationStreamUpdate {
 
 export type VerificationStreamEvent = StreamEvent<'status_changed', VerificationStreamConnected, VerificationStreamUpdate, Verification>;
 
-const TERMINAL_STATES = ['verified', 'failed', 'expired', 'revoked'] as const;
+/** `cancelled` is the losing sibling of a first-win multi-channel group: it will never change again. */
+const TERMINAL_STATES = ['verified', 'failed', 'expired', 'revoked', 'cancelled'] as const;
 
 export class Verifications {
   constructor(private readonly http: HttpClient) {}
@@ -68,9 +70,15 @@ export class Verifications {
     return this.http.post<Verification>(`/api/v1/verifications/${encodeURIComponent(id)}/verify`);
   }
 
-  /** Submit an OTP/challenge code */
-  submit(id: string, code: string): Promise<Verification> {
-    return this.http.post<Verification>(`/api/v1/verifications/${encodeURIComponent(id)}/submit`, { code });
+  /**
+   * Submit the code we emailed (`type: email`, and a domain verified by email).
+   *
+   * The server answers a `SubmitChallengeResponse`. The `Verification` half is the type 1.2.0 released,
+   * kept so 1.x code still compiles; its other fields are not sent. The next major narrows the return
+   * type to `SubmitChallengeResponse` (sdks/shared/NEXT_MAJOR.md).
+   */
+  submit(id: string, code: string): Promise<Verification & SubmitChallengeResponse> {
+    return this.http.post<Verification & SubmitChallengeResponse>(`/api/v1/verifications/${encodeURIComponent(id)}/submit`, { code });
   }
 
   /** Resend a verification email (email channel only) */

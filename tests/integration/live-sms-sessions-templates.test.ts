@@ -46,7 +46,7 @@ describeLive('Per-project templates (integration, 1.2.0)', () => {
     expect(Array.isArray(listed.custom_templates)).toBe(true);
     expect(listed.available_channels).toContain('sms');
 
-    const template = await client.templates.retrieve('sms', 'verification_request');
+    const template = await client.templates.retrieve('telegram', 'verification_request');
     expect(template.profile_id).toBe(listed.profile_id);
     expect(['project', 'default']).toContain(template.scope);
     expect(template.template.body).toEqual(expect.any(String));
@@ -58,7 +58,7 @@ describeLive('Per-project templates (integration, 1.2.0)', () => {
 
     const listed = await client.templates.list({ profileId: projectId });
     expect(listed.profile_id).toBe(projectId);
-    const template = await client.templates.retrieve('sms', 'verification_request', { profileId: projectId });
+    const template = await client.templates.retrieve('telegram', 'verification_request', { profileId: projectId });
     expect(template.profile_id).toBe(projectId);
 
     const refused = await client.templates.list({ profileId: UNOWNED_PROFILE_ID }).catch((e: unknown) => e);

@@ -34,6 +34,14 @@ export interface ApiError {
   retryAfter?: number;
   /** Number of remaining attempts before lockout (auth endpoints only) */
   remaining_attempts?: number;
+  /** Where to top up the prepaid balance (402 `balance_empty` only) */
+  top_up_url?: string;
+  /** This period's production proofs (402 `balance_empty` only) */
+  used?: number;
+  /** Proofs the account's plan includes per period (402 `balance_empty` only) */
+  included?: number;
+  /** The prepaid balance in euro cents, at or below zero (402 `balance_empty` only) */
+  balance?: number;
 }
 
 export interface Pagination {
@@ -85,6 +93,22 @@ export interface ProofToken {
   expires_at: string;
   /** Present for SMS proofs: `standard`, or `degraded` once a later spoof check finds risk. */
   confidence?: 'high' | 'standard' | 'degraded';
+}
+
+/**
+ * What `verifications.submit()` returns: the result of submitting the code we emailed — not a full
+ * `Verification`. `proof` and `verified_at` are present when the code was right; `message` when it
+ * was wrong (`pending`, with `attempts_remaining`) or the attempts are used up (`failed`).
+ */
+export interface SubmitChallengeResponse {
+  id: string;
+  status: VerificationStatus;
+  attempts: number;
+  max_attempts: number;
+  verified_at?: string;
+  proof?: { token: string; expires_at: string };
+  message?: string;
+  attempts_remaining?: number;
 }
 
 export interface Verification {
@@ -510,7 +534,7 @@ export interface Session {
 export interface CreateSessionParams {
   channel: SessionChannel;
   /**
-   * The sub-account (project) this session is for: its branding and templates are used. Omitted:
+   * The sub-account this session is for: its branding and templates are used. Omitted:
    * the API key's sub-account, else your primary.
    */
   profile_id?: string;
@@ -562,7 +586,15 @@ export interface WebhookDelivery {
   next_retry_at: string | null;
   delivered_at: string | null;
   verification_request_id: string | null;
+  /** The event body as stored: every `proof_token` in it is null — the POSTed body carries the token. */
   payload?: unknown;
+  /**
+   * Why the last send carried `proof_token: null`. A retried delivery carries the same `proof_token` as
+   * the first attempt, or null: `source_gone` (the record holding the token is gone), `token_absent` (it
+   * holds none, or held none when queued), `token_changed` (its token is no longer the one queued).
+   * Null when every token was sent; absent from an API that predates it.
+   */
+  token_omitted_reason?: 'source_gone' | 'token_absent' | 'token_changed' | null;
   response_body?: string | null;
   created_at: string;
   updated_at?: string;
@@ -587,6 +619,81 @@ export interface WebhookPagination {
   limit: number;
   total: number;
   total_pages: number;
+}
+
+// ============================================================================
+// Webhook Endpoints
+// ============================================================================
+
+/** Who an endpoint serves: every sub-account (plus account-level events), or only `profile_ids`. */
+export type WebhookEndpointScope = 'all' | 'selected';
+
+/** A `disabled` endpoint receives nothing; its history and secret are kept. */
+export type WebhookEndpointStatus = 'active' | 'disabled';
+
+/**
+ * A webhook endpoint. Reads never carry the signing secret — only `secret_set` — the secret is
+ * returned once, by `create` and `rotateSecret` (`WebhookEndpointWithSecret`).
+ */
+export interface WebhookEndpoint {
+  id: string;
+  /** HTTPS URL deliveries are POSTed to, at most 2000 characters. */
+  url: string;
+  /** Subscription patterns: an exact event type, a family wildcard such as `proof.*`, or `*`. Empty means every event. */
+  events: string[];
+  scope: WebhookEndpointScope;
+  /** The sub-accounts a `selected` endpoint serves; empty for `all`. */
+  profile_ids: string[];
+  status: WebhookEndpointStatus;
+  description: string | null;
+  /** The endpoint converted from the account's single webhook URL (the deprecated `/me/settings` webhook block). */
+  legacy: boolean;
+  /** Whether the endpoint has a signing secret (always true). */
+  secret_set: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Response from `create` and `rotateSecret` — the only responses that carry the signing secret. */
+export interface WebhookEndpointWithSecret extends WebhookEndpoint {
+  /** The signing secret — returned only in this response. Store it now. */
+  secret: string;
+}
+
+/** Response from `GET /api/v1/webhook-endpoints`. */
+export interface WebhookEndpointList {
+  data: WebhookEndpoint[];
+}
+
+/** Body of `POST /api/v1/webhook-endpoints`. */
+export interface CreateWebhookEndpointParams {
+  /** HTTPS URL, at most 2000 characters. Private, loopback and link-local addresses are refused. */
+  url: string;
+  /** Subscription patterns (exact type, `family.*` or `*`); omitted or empty means every event. */
+  events?: string[];
+  scope: WebhookEndpointScope;
+  /** Required (at least one, all of this account) for `selected`; empty for `all`. */
+  profile_ids?: string[];
+  status?: WebhookEndpointStatus;
+  description?: string | null;
+}
+
+/** Body of `PATCH /api/v1/webhook-endpoints/:id` — every field optional. */
+export interface UpdateWebhookEndpointParams {
+  url?: string;
+  events?: string[];
+  scope?: WebhookEndpointScope;
+  profile_ids?: string[];
+  status?: WebhookEndpointStatus;
+  description?: string | null;
+}
+
+/** Response from `POST /api/v1/profiles/profiles/:profileId/callback-secret/rotate`. */
+export interface CallbackSecret {
+  /** The sub-account whose secret this is. */
+  profile_id: string;
+  /** Signs every `callback_url` delivery of this sub-account's verification requests (`X-Proof-Signature`). */
+  secret: string;
 }
 
 export interface WebhookDeliveryStats {
@@ -760,6 +867,21 @@ export interface OfflineVerificationResult {
     verified_at: string;
     user_id: string;
     decision?: 'approve' | 'deny';
+    /**
+     * Proof's signed record of who decided a HITL confirmation (proof schema 1.4): an enrolled
+     * approver, with their own key, or the owner, with the config key. Absent on every other proof.
+     * This is the issuer's claim. The decider's own signature over the decision is on the
+     * confirmation's REST detail (`response.signature`, `response.signed_input`,
+     * `response.public_key`).
+     */
+    decided_by?: 'approver' | 'owner';
+    /** The deciding approver's authorization. Absent when the owner decided. */
+    authorization_id?: string;
+    /**
+     * The kid of the key that signed the decision. This is not the token's header `kid`, which
+     * names the issuer key that signed the token.
+     */
+    signer_kid?: string;
   };
   error?: string;
   reason?: OfflineFailureReason;
@@ -830,7 +952,7 @@ export interface WaitOptions {
 
 /** Options for `confirmations.waitForResolution` and `confirmations.createAndWait`. */
 export interface ConfirmAndWaitOptions extends WaitOptions {
-  /** Per-request proof expiry override in days, passed to confirmation create (7, 30, 90, or 365) */
+  /** Lifetime in days of the decision proof, passed to confirmation create (1-365); without it the proof lives 365 days */
   proofExpiryDays?: number;
   /**
    * Throw `ConfirmationDeniedError` when the confirmation is denied.
@@ -844,12 +966,27 @@ export interface ConfirmAndWaitOptions extends WaitOptions {
 // HITL Encryption Keys
 // ============================================================================
 
-/** Response from `GET /api/v1/hitl/:id/keys`. */
+/**
+ * Response from `GET /api/v1/hitl/:id/keys`.
+ *
+ * A key holding `confirmations:create` without `hitl:read` is sent `public_key` and `kid` only, so
+ * `encrypted_private_key` and `kdf_salt` are absent from its body; and `public_key` is `null` when
+ * the stored key material cannot be read. The 1.x type keeps its released shape; it follows the
+ * spec in the next major (`sdks/shared/NEXT_MAJOR.md`).
+ */
 export interface HitlKeysResponse {
   public_key: string;
   encrypted_private_key: string;
   kdf_salt: string;
   kid: string;
+  /** The per-config data key wrapped under the master key; null for a keypair stored before it existed. Absent for a requester key, as are the five below. */
+  wrapped_dek?: string | null;
+  dek_iv?: string | null;
+  dek_tag?: string | null;
+  /** The same data key wrapped under the recovery key; null until recovery is set up. */
+  backup_wrapped_dek?: string | null;
+  backup_dek_iv?: string | null;
+  backup_dek_tag?: string | null;
 }
 
 /** Body accepted by `PUT /api/v1/hitl/:id/keys`. */
@@ -870,7 +1007,15 @@ export interface HitlKeysDeleteResponse {
   message: string;
 }
 
-/** An enrolled approver's public key, for multi-recipient (v2) envelope wrapping. */
+/**
+ * An enrolled approver's public key, for multi-recipient (v2) envelope wrapping.
+ *
+ * A key holding `confirmations:create` without `hitl:read` is sent `authorization_id`, `public_key`
+ * and `kid` only, so `recipient` and `channel` are absent from its body; `public_key` is `null` when
+ * the stored key material cannot be read; and `channel` is one of `whatsapp`, `telegram`, `sms`,
+ * `email`. The 1.x type keeps its released shape; it follows the spec in the next major
+ * (`sdks/shared/NEXT_MAJOR.md`).
+ */
 export interface HitlApproverKey {
   authorization_id: string;
   recipient: string;
@@ -1394,13 +1539,13 @@ export interface TemplateContent {
 }
 
 /**
- * Which project (sub-account) a templates call acts on. Templates exist per project only.
+ * Which sub-account a templates call acts on. Templates exist per sub-account only.
  *
- * Omitted: a project-bound API key uses its own project, any other caller the primary project. A
- * project-bound key naming a different project is refused (403 `profile_mismatch`).
+ * Omitted: a sub-account key uses its own sub-account, any other caller the primary sub-account. A
+ * sub-account key naming a different sub-account is refused (403 `profile_mismatch`).
  */
 export interface TemplateProjectOptions {
-  /** The project's id, sent as the `profile_id` query parameter. */
+  /** The sub-account's id, sent as the `profile_id` query parameter. */
   profileId?: string;
 }
 
@@ -1408,13 +1553,20 @@ export interface TemplateProjectOptions {
 export interface Template extends TemplateContent {
   /** Present on custom templates only */
   id?: string;
-  /** The project the custom template belongs to. Present on custom templates only */
+  /** The sub-account the custom template belongs to. Present on custom templates only */
   profile_id?: string | null;
   channel: TemplateChannel;
   message_type: TemplateMessageType;
   is_active?: boolean;
   version?: number;
   updated_at?: string;
+  /**
+   * When a message last went out with the platform default instead of this template, because rendering it would
+   * have left a raw `{{variable}}`. Null when it has not happened since the template was last saved. Custom only.
+   */
+  last_fallback_at?: string | null;
+  /** The variable names behind the last fallback (names only, never content). Custom templates only. */
+  last_fallback_variables?: string[];
 }
 
 /** A variable available for substitution in template bodies. */
@@ -1423,14 +1575,40 @@ export interface TemplateVariable {
   description: string;
 }
 
+/** A channel and message type some message is sent for, so a template saved for it is used. */
+export interface TemplateSendablePair {
+  channel: TemplateChannel;
+  message_type: TemplateMessageType;
+  /** The variables some send of this pair fills — the only ones replaced in a template for it. Saving any other draws a `template_variable_not_filled` warning. */
+  variables: string[];
+}
+
+/** Why a saved template would never be sent as written. The save still succeeds. */
+export interface TemplateSendWarning {
+  /**
+   * `template_not_sent` — no message is ever sent for this channel and message type; `template_variable_not_filled` —
+   * the template uses variables no send of this pair fills, so its messages go out with the platform default instead.
+   */
+  code: 'template_not_sent' | 'template_variable_not_filled';
+  message: string;
+  /** The variables no send of this pair fills (`template_variable_not_filled` only) */
+  variables?: string[];
+}
+
 /** Response from `GET /api/v1/templates`. */
 export interface TemplateListResponse {
-  /** The project whose templates are listed */
+  /** The sub-account whose templates are listed */
   profile_id: string | null;
   custom_templates: Template[];
   available_channels: TemplateChannel[];
   available_message_types: TemplateMessageType[];
   available_variables: TemplateVariable[];
+  /**
+   * What a template is used for. A template saved for any other pair is stored but never sent (warning
+   * `template_not_sent`), and a variable outside the pair's `variables` is never replaced (`template_variable_not_filled`).
+   * Absent from an API that predates it.
+   */
+  sendable?: TemplateSendablePair[];
 }
 
 /** Response from `GET /api/v1/templates/defaults`. */
@@ -1441,9 +1619,9 @@ export interface TemplateDefaultsResponse {
 /** Response from `GET /api/v1/templates/:channel/:messageType`. */
 export interface TemplateGetResponse {
   is_custom: boolean;
-  /** `project`: the project's own template; `default`: the platform default it falls back to */
+  /** `project`: the sub-account's own template; `default`: the platform default it falls back to */
   scope: 'project' | 'default';
-  /** The project the template was resolved for */
+  /** The sub-account the template was resolved for */
   profile_id: string | null;
   template: Template;
 }
@@ -1451,6 +1629,8 @@ export interface TemplateGetResponse {
 /** Response from `PUT /api/v1/templates/:channel/:messageType`. */
 export interface TemplateUpsertResponse {
   success: boolean;
+  /** Why this template would never be sent as written; empty when it would be. Absent from an API that predates it. */
+  warnings?: TemplateSendWarning[];
   template: Template;
 }
 
@@ -1479,6 +1659,8 @@ export interface TemplatePreviewResponse {
   preview: RenderedTemplate;
   validation_errors: string[];
   is_valid: boolean;
+  /** What a save of the same template would warn about; never makes `is_valid` false. Absent from an API that predates it. */
+  warnings?: TemplateSendWarning[];
 }
 
 /** Body accepted by `POST /api/v1/templates/render`. */
@@ -1519,6 +1701,32 @@ export interface CustomLink {
   display_order?: number;
 }
 
+/** A custom link as the owner reads it back: a `CustomLink` with its stored id and display fields. */
+export interface ProfileOwnerLink extends CustomLink {
+  _id: string;
+  is_visible: boolean;
+  display_order: number;
+}
+
+/** A proof shown on a profile, as its owner reads it (the spec's `PublicProofItem`; unlike the public view, it carries `channel`). */
+export interface PublicProofItem {
+  asset_id: string;
+  type: 'phone' | 'email' | 'domain' | 'social' | 'wallet' | 'telegram_bot' | 'delegation';
+  /** The asset as the owner chose to show it (full, partly masked or hidden). */
+  display_value: string;
+  /** The owner's label; absent when none was given. */
+  label?: string;
+  /** How the asset was verified: a verification channel, or `otp` / `magic_link` for an email address. */
+  channel?: string;
+  verified_at: string;
+  is_visible: boolean;
+  display_order: number;
+  mask_level: 'full' | 'partial' | 'hidden';
+  is_revoked?: boolean;
+  delegate_type?: 'human' | 'ai_agent';
+  delegation_id?: string;
+}
+
 /** A public profile owned by the authenticated user. */
 export interface Profile {
   id: string;
@@ -1528,20 +1736,24 @@ export interface Profile {
   display_name?: string;
   bio?: string;
   avatar_url?: string | null;
+  /** @deprecated Always `'basic'`; no levels are computed; removed in the next major (`sdks/shared/NEXT_MAJOR.md`). */
   verification_level?: string;
   is_business?: boolean;
   business_name?: string;
-  public_proofs?: unknown[];
-  custom_links?: CustomLink[];
+  /** In the order the public profile shows them (see `proof_order`). */
+  public_proofs?: PublicProofItem[];
+  /** Who decided the order of `public_proofs`: `default` until the owner reorders, then `owner`. */
+  proof_order: ProofOrder;
+  custom_links?: ProfileOwnerLink[];
   theme?: ProfileTheme;
   is_public: boolean;
   show_verification_dates?: boolean;
   show_proof_channels?: boolean;
   /** The owner's switch for the public Delegations section (default true). */
   show_delegations?: boolean;
-  /** Theme of this project's emails; null when unset (read as `dark`). Returned to the owner. */
+  /** Theme of this sub-account's emails; null when unset (read as `dark`). Returned to the owner. */
   email_theme?: 'dark' | 'light' | null;
-  /** Support address shown in this project's messages as `{{support_email}}`. Returned to the owner. */
+  /** Support address shown in this sub-account's messages as `{{support_email}}`. Returned to the owner. */
   support_email?: string | null;
   view_count?: number;
   created_at: string;
@@ -1558,9 +1770,9 @@ export interface CreateProfileParams {
   is_public?: boolean;
   is_primary?: boolean;
   theme?: ProfileTheme;
-  /** Theme of the HTML emails sent for this project. Unset reads as `dark`. */
+  /** Theme of the HTML emails sent for this sub-account. Unset reads as `dark`. */
   email_theme?: 'dark' | 'light';
-  /** Support address shown in this project's messages as `{{support_email}}`. */
+  /** Support address shown in this sub-account's messages as `{{support_email}}`. */
   support_email?: string;
 }
 
@@ -1579,9 +1791,9 @@ export interface UpdateProfileParams {
   show_delegations?: boolean;
   theme?: ProfileTheme;
   custom_links?: CustomLink[];
-  /** Theme of the HTML emails sent for this project. Unset reads as `dark`. */
+  /** Theme of the HTML emails sent for this sub-account. Unset reads as `dark`. */
   email_theme?: 'dark' | 'light';
-  /** Support address shown in this project's messages as `{{support_email}}`; `null` clears it. */
+  /** Support address shown in this sub-account's messages as `{{support_email}}`; `null` clears it. */
   support_email?: string | null;
 }
 
@@ -1599,7 +1811,12 @@ export interface ProfileDeleteResponse {
   message: string;
 }
 
-/** A per-profile message template (custom or default). */
+/**
+ * A per-profile message template (custom or default).
+ *
+ * @deprecated Only the deprecated `profiles` template methods use this type; their routes are retired (410 `endpoint_retired`).
+ * Removed in the next major — see `sdks/shared/NEXT_MAJOR.md`.
+ */
 export interface ProfileTemplate {
   channel: TemplateChannel;
   message_type: TemplateMessageType;
@@ -1611,13 +1828,23 @@ export interface ProfileTemplate {
   is_active: boolean;
 }
 
-/** Response from `GET /api/v1/me/profiles/:profileId/templates`. */
+/**
+ * Response from `GET /api/v1/me/profiles/:profileId/templates`.
+ *
+ * @deprecated Only the deprecated `profiles` template methods use this type; their routes are retired (410 `endpoint_retired`).
+ * Removed in the next major — see `sdks/shared/NEXT_MAJOR.md`.
+ */
 export interface ProfileTemplateListResponse {
   profile_id: string;
   templates: ProfileTemplate[];
 }
 
-/** Body accepted by `PUT /api/v1/me/profiles/:profileId/templates/:channel/:type`. */
+/**
+ * Body accepted by `PUT /api/v1/me/profiles/:profileId/templates/:channel/:type`.
+ *
+ * @deprecated Only the deprecated `profiles` template methods use this type; their routes are retired (410 `endpoint_retired`).
+ * Removed in the next major — see `sdks/shared/NEXT_MAJOR.md`.
+ */
 export interface ProfileTemplateUpdateParams {
   subject?: string;
   body: string;
@@ -1626,13 +1853,23 @@ export interface ProfileTemplateUpdateParams {
   is_active?: boolean;
 }
 
-/** Body accepted by `POST /api/v1/me/profiles/:profileId/templates/preview`. */
+/**
+ * Body accepted by `POST /api/v1/me/profiles/:profileId/templates/preview`.
+ *
+ * @deprecated Only the deprecated `profiles` template methods use this type; their routes are retired (410 `endpoint_retired`).
+ * Removed in the next major — see `sdks/shared/NEXT_MAJOR.md`.
+ */
 export interface ProfileTemplatePreviewParams extends TemplateContent {
   channel: TemplateChannel;
   message_type: TemplateMessageType;
 }
 
-/** Response from `POST /api/v1/me/profiles/:profileId/templates/preview`. */
+/**
+ * Response from `POST /api/v1/me/profiles/:profileId/templates/preview`.
+ *
+ * @deprecated Only the deprecated `profiles` template methods use this type; their routes are retired (410 `endpoint_retired`).
+ * Removed in the next major — see `sdks/shared/NEXT_MAJOR.md`.
+ */
 export interface ProfileTemplatePreviewResponse {
   preview: RenderedTemplate;
   variables_used: string[];
@@ -1650,6 +1887,20 @@ export interface PublicProfileProof {
   verified_at?: string;
 }
 
+/**
+ * Who decided the order of a profile's proofs: `default` (domain, social account, Telegram bot,
+ * email, phone, wallet, then each proof's `display_order`) or `owner` (the owner's `display_order`).
+ */
+export type ProofOrder = 'default' | 'owner';
+
+/** The asset a public profile leads with. */
+export interface PublicProfileLeadingProof {
+  type: 'phone' | 'email' | 'domain' | 'social' | 'wallet' | 'telegram_bot';
+  /** As the owner chose to show it (full or partly masked) — never masked further. */
+  display_value: string;
+  label: string | null;
+}
+
 /** A visible custom link on a public profile. */
 export interface PublicProfileLink {
   title: string;
@@ -1664,10 +1915,18 @@ export interface PublicProfileView {
   display_name?: string;
   bio?: string;
   avatar_url?: string;
+  /** @deprecated Always `'basic'`; no levels are computed; removed in the next major (`sdks/shared/NEXT_MAJOR.md`). */
   verification_level?: string;
   is_business?: boolean;
   business_name?: string;
+  /** The shown proofs, in the profile's order. */
   proofs: PublicProfileProof[];
+  /**
+   * The asset the profile's preview card, share tags and badge lead with: the first proof in the
+   * profile's order that is not hidden. Null when there is none — the profile then leads with
+   * `@username`, never with `display_name`, a name the owner typed that nothing proves.
+   */
+  leading_proof?: PublicProfileLeadingProof | null;
   links: PublicProfileLink[];
   theme?: ProfileTheme;
   /**
@@ -1732,3 +1991,128 @@ export interface BinaryResponse {
 
 /** Envelope returned by `GET /api/v1/profiles/p/:profileId/avatar`. */
 export type AvatarResponse = BinaryResponse;
+
+// ============================================================================
+// Billing (`/api/v1/billing/*`) — the OpenAPI components of the same names
+// ============================================================================
+
+/** A plan to check out. `free` adds a card for pay as you go, once billing is live. */
+export type BillingPlan = 'free' | 'starter' | 'pro' | 'business' | 'enterprise';
+
+/** Stripe's status for a subscription. */
+export type SubscriptionStatus =
+  | 'active' | 'past_due' | 'unpaid' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'paused';
+
+/** The account's subscription: its row whatever the status, or the account's own plan with no subscription. */
+export interface SubscriptionResponse {
+  plan: BillingPlan;
+  /** null when the account has no subscription */
+  status: SubscriptionStatus | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  /** The plan a scheduled downgrade moves the account to at `scheduled_change_at`; null when nothing is scheduled. Absent from an API that predates plan changes. */
+  scheduled_plan?: BillingPlan | null;
+  /** When the scheduled downgrade takes effect (the end of the paid period); null when nothing is scheduled. */
+  scheduled_change_at?: string | null;
+}
+
+export interface CheckoutRequest {
+  plan: BillingPlan;
+  /** Must be on `proof.holdings` (or `localhost`): the API refuses any other redirect host. */
+  success_url: string;
+  /** Must be on `proof.holdings` (or `localhost`): the API refuses any other redirect host. */
+  cancel_url: string;
+}
+
+export interface CheckoutResponse {
+  /** Stripe Checkout URL to redirect the user to */
+  checkout_url: string;
+}
+
+export interface PortalRequest {
+  /** Must be on `proof.holdings` (or `localhost`): the API refuses any other redirect host. */
+  return_url: string;
+}
+
+export interface PortalResponse {
+  /** Stripe Billing Portal URL to redirect the user to */
+  portal_url: string;
+}
+
+/** A top-up amount in euros. */
+export type TopUpAmount = 10 | 50 | 200;
+
+export interface TopUpRequest {
+  amount: TopUpAmount;
+  /** Save the card this payment uses and switch auto top-up on at this amount once it is paid. */
+  auto_top_up?: boolean;
+  /** Must be on `proof.holdings` (or `localhost`): the API refuses any other redirect host. */
+  success_url: string;
+  /** Must be on `proof.holdings` (or `localhost`): the API refuses any other redirect host. */
+  cancel_url: string;
+}
+
+export interface TopUpResponse {
+  /** Stripe Checkout URL to send the payer to. The balance is credited once Stripe reports the payment. */
+  checkout_url: string;
+}
+
+export interface AutoTopUpRequest {
+  enabled: boolean;
+  /** The refill amount; omitted, the amount already chosen stays. */
+  amount?: TopUpAmount;
+}
+
+/** The prepaid balance, from which proofs past the plan's included amount are drawn. */
+export interface BalanceResponse {
+  /** Whether billing is live. While it is off, nothing is drawn from the balance and nothing is paused. */
+  billing_enabled: boolean;
+  balance: {
+    /** In euro cents; may be below zero. */
+    amount: number;
+    currency: 'eur';
+    /** The exact balance in mills (1 mill = €0.001). */
+    mills: number;
+  };
+  /** The balance in euro cents below which the owner is sent a low-balance notice. */
+  low_balance_threshold: number;
+  /** The top-up amounts on offer, in euros. */
+  top_up_amounts: number[];
+  auto_top_up: {
+    enabled: boolean;
+    /** The refill amount in euros, or null when none was chosen. */
+    amount: number | null;
+    has_payment_method: boolean;
+  };
+}
+
+/** One row of the prepaid balance history. */
+export interface LedgerEntry {
+  id: string;
+  kind: 'top_up' | 'auto_top_up' | 'usage' | 'refund' | 'adjustment';
+  /** Signed, in euro cents: credits positive, usage and refunds negative. */
+  amount: number;
+  currency: 'eur';
+  mills: number;
+  /** Usage rows: the proofs deducted this period. */
+  proofs: number | null;
+  /** Usage rows: the period, `YYYY-MM`. */
+  period: string | null;
+  invoice_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** One page of the prepaid balance history, newest first. */
+export interface LedgerListResponse {
+  data: LedgerEntry[];
+  pagination: { page: number; limit: number; total: number; total_pages: number };
+}
+
+export interface BalanceLedgerParams {
+  /** From 1 (default 1) */
+  page?: number;
+  /** Rows per page, 1–100 (default 20) */
+  limit?: number;
+}

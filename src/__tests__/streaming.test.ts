@@ -246,6 +246,18 @@ describe('streamEndpoint — abort ends the loop cleanly', () => {
     expect(events.map((e) => e.event)).toEqual(['poll']);
   });
 
+  it('polling mode: a cancelled verification (a losing multi-channel sibling) ends the stream', async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      url.endsWith('/events') ? makeErrorResponse(503) : makeJSONResponse({ id: 'ver_1', status: 'cancelled' }),
+    );
+    const v = new Verifications(mkClient(fetchMock as unknown as typeof globalThis.fetch));
+
+    const events: SSEEvent[] = [];
+    for await (const ev of v.stream('ver_1', { interval: 10, jitter: 0, timeout: 200 })) events.push(ev);
+
+    expect(events.map((e) => e.event)).toEqual(['terminal']);
+  });
+
   it('a signal aborted before the first read yields nothing and does not throw', async () => {
     const fetchMock = vi.fn(async (_url: unknown, init: RequestInit) => {
       if (init.signal?.aborted) throw new DOMException('This operation was aborted', 'AbortError');
@@ -358,6 +370,22 @@ describe('streamEndpoint — polling fallback', () => {
     for await (const ev of vr.streamAsset('vr_1', 0, { interval: 5, jitter: 0, timeout: 1000 })) events.push(ev);
 
     expect(events.map((e) => e.event)).toEqual(['terminal']);
+  });
+
+  it('authSessions.stream: ends as terminal when the email login completed in another browser', async () => {
+    const urls: string[] = [];
+    const fetchMock = vi.fn(async (url: string) => {
+      urls.push(url);
+      if (url.endsWith('/events')) return makeErrorResponse(503);
+      return makeJSONResponse({ session_id: 'auth_abc', status: 'completed_elsewhere' });
+    });
+    const sessions = new AuthSessions(mkClient(fetchMock as unknown as typeof globalThis.fetch));
+
+    const events: SSEEvent[] = [];
+    for await (const ev of sessions.stream('auth_abc', { interval: 5, jitter: 0, timeout: 1000 })) events.push(ev);
+
+    expect(events.map((e) => e.event)).toEqual(['terminal']);
+    expect(urls[1]).toBe('https://api.example.com/api/v1/auth/sessions/auth_abc');
   });
 
   it('surfaces SSE errors when pollFallback: false', async () => {

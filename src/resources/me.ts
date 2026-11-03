@@ -9,24 +9,59 @@ import type {
   PlatformSummary,
 } from '../types.js';
 
-/** Dashboard-side add-phone session. */
+/** Dashboard-side add-phone session, as `GET /api/v1/me/phones/add/:sessionId` returns it. */
 export interface PhoneAddSession {
+  session_id: string;
+  /**
+   * @deprecated Never sent by the server (it reads `undefined`); use `session_id`. Kept as typed for 1.x
+   * compatibility and removed in the next major (`sdks/shared/NEXT_MAJOR.md`).
+   */
   id: string;
+  /** The number the person proved; absent until they have. */
+  phone_number?: string;
+  channel: 'telegram' | 'whatsapp' | 'sms';
+  /** `pending` or `verified`. */
   status: string;
+  /** Present once `status` is `verified`. */
+  verified_at?: string;
   [key: string]: unknown;
 }
 
-/** Dashboard-side add-email session. */
+/** Dashboard-side add-email session, as `GET /api/v1/me/emails/add/:sessionId` returns it. */
 export interface EmailAddSession {
+  session_id: string;
+  /**
+   * @deprecated Never sent by the server (it reads `undefined`); use `session_id`. Kept as typed for 1.x
+   * compatibility and removed in the next major (`sdks/shared/NEXT_MAJOR.md`).
+   */
   id: string;
+  email: string;
+  channel: 'otp';
+  /** `pending` or `verified`. */
   status: string;
+  /** Present once `status` is `verified`. */
+  verified_at?: string;
   [key: string]: unknown;
 }
 
-/** Dashboard-side 2FA challenge session. */
+/** Dashboard-side 2FA challenge session, as `GET /api/v1/me/2fa/:sessionId` returns it. */
 export interface TwoFASession {
+  session_id: string;
+  /**
+   * @deprecated Never sent by the server (it reads `undefined`); use `session_id`. Kept as typed for 1.x
+   * compatibility and removed in the next major (`sdks/shared/NEXT_MAJOR.md`).
+   */
   id: string;
+  /** `pending`, `verified` or `expired`. */
   status: string;
+  /** The action the step-up authorizes. */
+  action_type: string;
+  /** Present once `status` is `verified`. */
+  verified_at?: string;
+  /** When the stored grant stops being accepted; present once `status` is `verified`. */
+  grant_expires_at?: string;
+  /** Whether the grant is spent by the first act it allows; present once `status` is `verified`. */
+  grant_single_use?: boolean;
   [key: string]: unknown;
 }
 

@@ -26,7 +26,7 @@ export interface AuthSessionStreamUpdate {
 
 export type AuthSessionStreamEvent = StreamEvent<'update', AuthSessionStreamConnected, AuthSessionStreamUpdate, AuthSession>;
 
-const TERMINAL_STATES = ['verified', 'failed', 'expired'] as const;
+const TERMINAL_STATES = ['verified', 'failed', 'expired', 'completed_elsewhere'] as const;
 
 /**
  * Dashboard-side authentication sessions (magic-link / QR login). The

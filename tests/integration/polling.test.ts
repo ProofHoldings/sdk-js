@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { pollUntilComplete } from '../../src/polling.js';
-import { PollingTimeoutError, ConfirmationDeniedError } from '../../src/index.js';
+import { PollingTimeoutError, ConfirmationDeniedError, ProofError } from '../../src/index.js';
 import { generateKeyPair } from '../../src/crypto/hitl-crypto.js';
 import { createClient, LIVE_MODE } from './helpers.js';
 import type { MockHandler } from './helpers.js';
@@ -160,5 +160,43 @@ describe('confirmations.createAndWait (integration)', () => {
     };
     const result = await createClient({ handler }).confirmations.createAndWait('hitl_1', 'Deploy?', { ...FAST_POLL, throwOnDenial: false });
     expect(result.status).toBe('denied');
+  });
+
+  // A key holding confirmations:create without hitl:read is sent `{public_key, kid}` only;
+  // createAndWait reads nothing else.
+  itMockOnly('succeeds on the reduced keys body a requester key is sent', async () => {
+    const handler: MockHandler = (url, init) => {
+      if (url.includes('/api/v1/hitl/hitl_1/keys')) {
+        return { status: 200, body: { public_key: publicKeyPem, kid: 'a'.repeat(64) } };
+      }
+      if (url.endsWith('/api/v1/confirmations') && init?.method === 'POST') {
+        return { status: 200, body: { id: 'conf_r', status: 'pending' } };
+      }
+      if (url.includes('/api/v1/confirmations/conf_r')) {
+        return { status: 200, body: { id: 'conf_r', status: 'approved' } };
+      }
+      return { status: 404, body: {} };
+    };
+    const result = await createClient({ handler }).confirmations.createAndWait('hitl_1', 'Deploy?', FAST_POLL);
+    expect(result.status).toBe('approved');
+  });
+
+  // The API answers `public_key: null` when the stored key material cannot be read.
+  itMockOnly('refuses with a typed error, creating nothing, when the config has no readable public key', async () => {
+    let created = false;
+    const handler: MockHandler = (url, init) => {
+      if (url.includes('/api/v1/hitl/hitl_1/keys')) {
+        return { status: 200, body: { public_key: null, kid: 'a'.repeat(64) } };
+      }
+      if (url.endsWith('/api/v1/confirmations') && init?.method === 'POST') {
+        created = true;
+        return { status: 200, body: { id: 'conf_n', status: 'pending' } };
+      }
+      return { status: 404, body: {} };
+    };
+    const failure = await createClient({ handler }).confirmations.createAndWait('hitl_1', 'Deploy?', FAST_POLL).catch((err: unknown) => err);
+    expect(failure).toBeInstanceOf(ProofError);
+    expect(failure).toMatchObject({ code: 'hitl_public_key_unreadable', message: 'this HITL config has no readable public key' });
+    expect(created).toBe(false);
   });
 });

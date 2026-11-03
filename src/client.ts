@@ -4,6 +4,7 @@ import { VerificationRequests } from './resources/verification-requests.js';
 import { Proofs } from './resources/proofs.js';
 import { Sessions } from './resources/sessions.js';
 import { WebhookDeliveries } from './resources/webhook-deliveries.js';
+import { WebhookEndpoints } from './resources/webhook-endpoints.js';
 import { Confirmations } from './resources/confirmations.js';
 import { AuthSessions } from './resources/auth-sessions.js';
 import { Me } from './resources/me.js';
@@ -17,6 +18,7 @@ import { PublicProfiles } from './resources/public-profiles.js';
 import { ProofMe } from './resources/proof-me.js';
 import { Circles } from './resources/circles.js';
 import { Delegations } from './resources/delegations.js';
+import { Billing } from './resources/billing.js';
 import type { ProofOptions } from './types.js';
 import { missingKeyMessage, resolveApiKey, resolveBaseUrl } from './credentials.js';
 
@@ -29,6 +31,7 @@ export class Proof {
   public readonly proofs: Proofs;
   public readonly sessions: Sessions;
   public readonly webhookDeliveries: WebhookDeliveries;
+  public readonly webhookEndpoints: WebhookEndpoints;
   public readonly confirmations: Confirmations;
   public readonly authSessions: AuthSessions;
   public readonly me: Me;
@@ -42,6 +45,7 @@ export class Proof {
   public readonly proofMe: ProofMe;
   public readonly circles: Circles;
   public readonly delegations: Delegations;
+  public readonly billing: Billing;
 
   /**
    * With a key: `new Proof('pk_live_…', options?)`, used as given. Without one — `new Proof()` or
@@ -86,6 +90,7 @@ export class Proof {
     this.proofs = new Proofs(http, { maxJwksAgeMs: options?.maxJwksAgeMs });
     this.sessions = new Sessions(http);
     this.webhookDeliveries = new WebhookDeliveries(http);
+    this.webhookEndpoints = new WebhookEndpoints(http);
     this.confirmations = new Confirmations(http);
     this.authSessions = new AuthSessions(http);
     this.me = new Me(http);
@@ -99,5 +104,6 @@ export class Proof {
     this.proofMe = new ProofMe(http);
     this.circles = new Circles(http);
     this.delegations = new Delegations(http);
+    this.billing = new Billing(http);
   }
 }

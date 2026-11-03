@@ -33,6 +33,23 @@ const CLOCK_TOLERANCE_SECONDS = 5;
 
 /** The only `iss` a proof token may carry. */
 const PROOF_TOKEN_ISSUER = 'proof.holdings';
+const MISSING_PROOF_CLAIMS =
+  'token is missing the claims a proof carries (type, channel, identifier_hash, user_id or tenant_id)';
+
+/**
+ * What the issuer itself requires of a proof (`POST /proofs/validate`). The proof key also signs
+ * artifacts that are not proofs, such as data-export receipts, so a good signature alone does not
+ * make a token a proof.
+ */
+function hasRequiredProofClaims(claims: Record<string, unknown>): boolean {
+  const present = (key: string) => typeof claims[key] === 'string' && claims[key] !== '';
+  return (
+    (present('user_id') || present('tenant_id')) &&
+    present('type') &&
+    present('channel') &&
+    present('identifier_hash')
+  );
+}
 
 /** Ceiling on a fetched status list, mirroring `@proof-holdings/delegation-verifier`. */
 const MAX_STATUS_LIST_BYTES = 512 * 1024;
@@ -151,6 +168,10 @@ export class Proofs {
    *
    * Revoking a PROOF does not withdraw the asset, consent or delegation it is about — those have
    * their own surfaces.
+   *
+   * `reason` is one of `user_request`, `fraud`, `key_compromise`, `asset_transferred` or `other`
+   * (the API refuses any other value); left out or empty, no reason is sent and the API records
+   * `user_request`. `asset_transferred` is refused for a delegation proof (`ph_dlg_*`).
    */
   revoke(id: string, reason?: string): Promise<RevokeResponse> {
     return this.http.post<RevokeResponse>(`/api/v1/proofs/${encodeURIComponent(id)}/revoke`, {
@@ -183,6 +204,10 @@ export class Proofs {
    *
    * Pass `{ checkRevocation: false }` to check the signature alone; the result then reports
    * `revocation_checked: false`.
+   *
+   * A correctly signed token is a proof only if it carries the claims the issuer requires of one:
+   * a non-empty `type`, `channel` and `identifier_hash`, and a `user_id` or `tenant_id`. Anything
+   * else signed with the proof key, such as a data-export receipt, answers `invalid`.
    *
    * The key set follows the issuer's key-rotation rules (`sdks/shared/fixtures/jwks_rotation/`): a
    * key the issuer revoked answers `key_revoked` with a `pull_hint` naming where a re-issued token
@@ -230,6 +255,9 @@ export class Proofs {
       };
     }
     const claims = checked.payload;
+    if (family === 'proof' && !hasRequiredProofClaims(claims)) {
+      return { valid: false, error: MISSING_PROOF_CLAIMS, reason: 'invalid', revocation_checked: false };
+    }
 
     const verified: OfflineVerificationResult = {
       valid: true,
@@ -244,6 +272,9 @@ export class Proofs {
         verified_at: claims.verified_at as string,
         user_id: claims.user_id as string,
         decision: claims.decision as 'approve' | 'deny' | undefined,
+        decided_by: claims.decided_by as 'approver' | 'owner' | undefined,
+        authorization_id: claims.authorization_id as string | undefined,
+        signer_kid: claims.signer_kid as string | undefined,
       },
       revocation_checked: false,
     };
