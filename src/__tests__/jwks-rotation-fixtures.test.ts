@@ -372,8 +372,8 @@ describe('client surface (h-verifier-jwks-js-python SC-1, SC-3, SC-4, SC-5)', ()
 
   it('the README states that tombstones are kept in memory only', () => {
     const readme = readFileSync(join(here, '../../README.md'), 'utf-8');
-    const section = readme.split(/^### /m).find((part) => part.startsWith('Signing-key rotation'));
-    expect(section, 'README heading "### Signing-key rotation"').toBeDefined();
+    const section = readme.split(/^## /m).find((part) => part.startsWith('Key rotation\n'));
+    expect(section, 'README heading "## Key rotation"').toBeDefined();
     expect(section).toMatch(/in memory/);
     expect(section).toMatch(/clearTombstones\(\)/);
     expect(section).toMatch(/not persisted/);

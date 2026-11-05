@@ -19,8 +19,12 @@ import {
 } from '../jwks/key-set-cache.js';
 import { checkKeyPolicy, type KeyFamily } from '../jwks/keyset.js';
 import type {
+  DelegationTokenPull,
   ProofStatus,
+  ProofTokenPull,
   ProofValidation,
+  ReissuedProofList,
+  ReissuedProofsParams,
   RevocationList,
   RevokeResponse,
   OfflineFailureReason,
@@ -187,6 +191,40 @@ export class Proofs {
   /** Get the revocation list */
   listRevoked(): Promise<RevocationList> {
     return this.http.get<RevocationList>('/api/v1/proofs/revoked');
+  }
+
+  /**
+   * The current token of a proof you own, by its `ph_ctl_*` handle — after a signing-key rotation,
+   * the re-signed one. Each read is audited. A revoked or expired proof answers 410
+   * `proof_not_live`; a delegation's token is read with `delegationToken`. The proof of one of the
+   * account's own verified assets answers a live API key 403 `owner_session_required` whatever its
+   * status: the signed-in owner reads it.
+   */
+  token(id: string): Promise<ProofTokenPull> {
+    return this.http.get<ProofTokenPull>(`/api/v1/proofs/${encodeURIComponent(id)}/token`);
+  }
+
+  /**
+   * Your proofs re-issued at or after `since`, oldest first, as references: pull a `ph_ctl_*` item
+   * with `token` and a `ph_dlg_*` item with `delegationToken`. An API key's list leaves out the
+   * proofs of the account's own verified assets.
+   */
+  listReissued(params: ReissuedProofsParams): Promise<ReissuedProofList> {
+    const since = params.since instanceof Date ? params.since.toISOString() : params.since;
+    return this.http.get<ReissuedProofList>('/api/v1/proofs', {
+      reissued_since: since,
+      page: params.page,
+      limit: params.limit,
+    });
+  }
+
+  /**
+   * The current token of an active delegation, by its `ph_dlg_*` handle. Public: the token is
+   * already published with the delegation. Every handle that is not an active delegation answers
+   * the same 404.
+   */
+  delegationToken(handle: string): Promise<DelegationTokenPull> {
+    return this.http.get<DelegationTokenPull>(`/api/v1/proofs/delegation-token/${encodeURIComponent(handle)}`);
   }
 
   /**

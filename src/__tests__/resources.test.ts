@@ -11,6 +11,7 @@ import { Templates } from '../resources/templates.js';
 import { Profiles } from '../resources/profiles.js';
 import { PublicProfiles } from '../resources/public-profiles.js';
 import { Me } from '../resources/me.js';
+import { Proofs } from '../resources/proofs.js';
 
 function mockHttp() {
   return {
@@ -858,5 +859,85 @@ describe('Me resource (dashboard/agent data surface)', () => {
     await m.apiKeyUsage('key/special&id');
 
     expect(http.get).toHaveBeenCalledWith('/api/v1/me/api-keys/key%2Fspecial%26id/usage', undefined);
+  });
+});
+
+describe('Proofs resource (token pull)', () => {
+  const pulled = {
+    proof_id: 'ph_ctl_0123456789abcdef0123456789abcdef',
+    token: 'eyJ.re-signed.token',
+    status: 'active',
+    reissued_at: '2026-10-10T08:00:00.000Z',
+    expires_at: '2027-10-10T08:00:00.000Z',
+  };
+
+  it('token sends GET to the encoded handle and returns the pulled token', async () => {
+    const http = mockHttp();
+    vi.mocked(http.get).mockResolvedValue(pulled);
+    const p = new Proofs(http);
+
+    const result = await p.token('ph_ctl/special&id');
+
+    expect(http.get).toHaveBeenCalledWith('/api/v1/proofs/ph_ctl%2Fspecial%26id/token');
+    expect(result).toEqual(pulled);
+  });
+
+  it('listReissued serializes a Date as an ISO instant with Z and passes paging', async () => {
+    const http = mockHttp();
+    const list = {
+      data: [{ proof_id: pulled.proof_id, reissued_at: pulled.reissued_at, token_url: `/api/v1/proofs/${pulled.proof_id}/token` }],
+      pagination: { page: 2, limit: 50, total: 51, total_pages: 2 },
+    };
+    vi.mocked(http.get).mockResolvedValue(list);
+    const p = new Proofs(http);
+
+    const result = await p.listReissued({ since: new Date(Date.UTC(2026, 9, 1, 12, 30)), page: 2, limit: 50 });
+
+    expect(http.get).toHaveBeenCalledWith('/api/v1/proofs', {
+      reissued_since: '2026-10-01T12:30:00.000Z',
+      page: 2,
+      limit: 50,
+    });
+    expect(result).toEqual(list);
+  });
+
+  it('listReissued passes a string instant through unchanged', async () => {
+    const http = mockHttp();
+    vi.mocked(http.get).mockResolvedValue({ data: [], pagination: { page: 1, limit: 20, total: 0, total_pages: 0 } });
+    const p = new Proofs(http);
+
+    await p.listReissued({ since: '2026-10-01T15:30:00+03:00' });
+
+    expect(http.get).toHaveBeenCalledWith('/api/v1/proofs', {
+      reissued_since: '2026-10-01T15:30:00+03:00',
+      page: undefined,
+      limit: undefined,
+    });
+  });
+
+  it('listReissued percent-encodes the offset sign on the wire', async () => {
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ data: [], pagination: { page: 1, limit: 20, total: 0, total_pages: 0 } }),
+    })) as unknown as typeof globalThis.fetch;
+    const p = new Proofs(new HttpClient({ apiKey: 'pk_test_123', baseUrl: 'https://api.example.com', maxRetries: 0, fetch }));
+
+    await p.listReissued({ since: '2026-10-01T15:30:00+03:00' });
+
+    const url = String(vi.mocked(fetch).mock.calls[0][0]);
+    expect(url).toBe('https://api.example.com/api/v1/proofs?reissued_since=2026-10-01T15%3A30%3A00%2B03%3A00');
+  });
+
+  it('delegationToken sends GET to the encoded public pull and returns the token', async () => {
+    const http = mockHttp();
+    vi.mocked(http.get).mockResolvedValue({ token: 'eyJ.delegation.token' });
+    const p = new Proofs(http);
+
+    const result = await p.delegationToken('ph_dlg/special&id');
+
+    expect(http.get).toHaveBeenCalledWith('/api/v1/proofs/delegation-token/ph_dlg%2Fspecial%26id');
+    expect(result).toEqual({ token: 'eyJ.delegation.token' });
   });
 });

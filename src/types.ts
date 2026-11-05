@@ -491,6 +491,50 @@ export interface RevokeResponse {
   reason: string;
 }
 
+/** The current token of a proof you own — after a key rotation, the re-signed one. */
+export interface ProofTokenPull {
+  /** Public proof handle (`ph_ctl_…`). */
+  proof_id: string;
+  token: string;
+  /** Live statuses only — a revoked or expired proof answers 410 `proof_not_live` instead. */
+  status: 'active' | 'suspended';
+  /** When the token was last re-signed under a newer key; null if it never was. */
+  reissued_at: string | null;
+  expires_at: string;
+}
+
+/** A re-issued proof, by reference — never the token itself. */
+export interface ReissuedProof {
+  /** `ph_ctl_…` for a proof (pull it with `proofs.token`), `ph_dlg_…` for a delegation (`proofs.delegationToken`). */
+  proof_id: string;
+  reissued_at: string;
+  /** Relative path of the pull for this item. */
+  token_url: string;
+}
+
+export interface ReissuedProofList {
+  /** Oldest re-issue first. */
+  data: ReissuedProof[];
+  pagination: {
+    page?: number;
+    limit?: number;
+    total?: number;
+    total_pages?: number;
+  };
+}
+
+export interface ReissuedProofsParams {
+  /** Lists proofs re-issued at or after this instant. A string must carry an offset (`Z` or `±hh:mm`). */
+  since: Date | string;
+  page?: number;
+  limit?: number;
+}
+
+/** The current token of an active delegation. */
+export interface DelegationTokenPull {
+  token: string;
+}
+
 // ============================================================================
 // Sessions (Phone-First Flow)
 // ============================================================================
@@ -571,7 +615,9 @@ export type WebhookEventType =
   | 'proof.suspended'
   | 'proof.unsuspended'
   | 'account.deletion_scheduled'
-  | 'account.deletion_cancelled';
+  | 'account.deletion_cancelled'
+  | 'proof.reissued'
+  | 'delegation.reissued';
 
 export interface WebhookDelivery {
   id: string;
@@ -1297,7 +1343,7 @@ export interface DelegateIdentifier {
 
 /**
  * A delegation attests that whoever controls the `principal` domain authorized the
- * `delegate` artifact for the listed scopes — nothing more. It says nothing about
+ * `delegate` artifact — nothing more. It says nothing about
  * the artifact or the business behind it.
  *
  * NO method returns this shape. Every delegation response also carries the derived
@@ -1311,9 +1357,14 @@ export interface Delegation {
   /** The control-proven domain (derived server-side from the control proof, never client input) */
   principal: string;
   delegate: DelegateIdentifier;
-  scope: string[];
   /** Public handle (`ph_ctl_<32 hex>`) of the domain control proof this delegation chains down to */
   control_proof: string;
+  /**
+   * @deprecated Delegation schema 2.0 has no scope: this is the scope a delegation issued before it was
+   * stored with, otherwise empty. Kept as typed for 1.x compatibility and removed in the next major
+   * (`sdks/shared/NEXT_MAJOR.md`).
+   */
+  scope: string[];
   status: DelegationStatus;
   revoked_at: string | null;
   revoked_reason: string | null;
@@ -1358,7 +1409,11 @@ export interface CreateDelegationParams {
   /** Public handle (`ph_ctl_<32 hex>`) of YOUR active domain control proof */
   control_proof: string;
   delegate: DelegateIdentifier;
-  /** 1–32 capability scopes (pattern tokens, ≤64 chars each) */
+  /**
+   * @deprecated A delegation carries no scope since delegation schema 2.0: pass `[]`. Still required, as
+   * 1.2.0 released it, so code written for 1.x keeps compiling; a value given is sent as is, ignored by the
+   * server, and answered with a `Deprecation` header. Removed in the next major (`sdks/shared/NEXT_MAJOR.md`).
+   */
   scope: string[];
   /** Lifetime in seconds — rejected (400), never truncated, when it exceeds the control proof's remainder */
   expires_in?: number;
@@ -1944,6 +1999,11 @@ export interface PublicProfileDelegation {
   delegate_type: 'url' | 'purl';
   /** The domain, shown on this profile, that authorized the artifact. */
   principal: string;
+  /**
+   * @deprecated Delegation schema 2.0 has no scope: this is the scope a delegation issued before it was
+   * stored with, otherwise empty. Kept as typed for 1.x compatibility and removed in the next major
+   * (`sdks/shared/NEXT_MAJOR.md`).
+   */
   scope: string[];
   issued_at: string;
   expires_at: string;

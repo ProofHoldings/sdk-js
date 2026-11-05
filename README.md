@@ -119,7 +119,7 @@ if (offline.valid) {
 } else {
   // 'revoked' | 'suspended' | 'expired' | 'invalid' | 'status_unavailable'
   // | 'key_revoked' | 'jwks_stale' | 'wrong_key_purpose' | 'outside_key_window'
-  // | 'token_lifetime_exceeded' | 'unknown_key' — see "Signing-key rotation" below
+  // | 'token_lifetime_exceeded' | 'unknown_key' — see "Key rotation" below
   console.log('Refused:', offline.reason);
 }
 
@@ -137,31 +137,19 @@ await proof.proofs.revoke('verification_id', 'user_request');
 
 // Get revocation list
 const { revoked } = await proof.proofs.listRevoked();
+
+// After a signing-key rotation: list what was re-signed, page by page, then pull the current tokens
+const since = new Date('2026-10-01T00:00:00Z');
+for (let page = 1, totalPages = 1; page <= totalPages; page++) {
+  const { data, pagination } = await proof.proofs.listReissued({ since, page, limit: 100 });
+  totalPages = pagination.total_pages ?? page;
+  for (const item of data) {
+    const { token } = item.proof_id.startsWith('ph_dlg_')
+      ? await proof.proofs.delegationToken(item.proof_id) // public, no key needed
+      : await proof.proofs.token(item.proof_id);
+  }
+}
 ```
-
-### Signing-key rotation
-
-`verifyOffline` fetches and caches the issuer's key set (JWKS) itself and follows its rotation rules.
-The cached set is reused for 10 minutes; a `kid` it does not know triggers one refetch, at most
-once every 30 seconds.
-
-- **`key_revoked`** — the issuer revoked the key that signed the token. The result carries
-  `pull_hint: { issuer_origin, handle }`: where to fetch the re-signed token (`handle` is the proof's
-  `proof_id`, or a delegation's `sub`). The handle is read from the token itself, whose signature a
-  revoked key no longer vouches for: URL-encode it before building a request from it. A revocation
-  takes effect only after two key-set fetches at least 5 minutes apart both carry it, and is then kept
-  for a year.
-- **`jwks_stale`** — the key set could not be refreshed and the cached copy is older than
-  `maxJwksAgeMs` (default 24 hours, at most 25 days; `new Proof(key, { maxJwksAgeMs })`). The result
-  carries `cache_age_seconds`. Call `refreshJWKS()` once the issuer is reachable.
-- **`wrong_key_purpose`**, **`outside_key_window`**, **`token_lifetime_exceeded`** — the key belongs
-  to another token family, the token was signed outside the key's validity window, or it lives longer
-  than the key allows. **`unknown_key`** — no published key matches the token's `kid`.
-
-Revoked-key tombstones are kept in memory only — they are not persisted, so a restarted process
-learns them again from the issuer. `clearTombstones()` forgets them on purpose. `refreshJWKS()` makes
-the next verification refetch the key set (and drops the cached status list); it does not forget
-tombstones.
 
 ### Sessions (Phone-First Flow)
 
@@ -207,6 +195,67 @@ const { secret } = await proof.profiles.rotateCallbackSecret(profileId);
 const deliveries = await proof.webhookDeliveries.list({ status: 'failed' });
 await proof.webhookDeliveries.retry(deliveries.data[0].id);
 ```
+
+## Key rotation
+
+
+`verifyOffline` fetches and caches the issuer's key set (JWKS) itself and follows its rotation rules.
+The cached set is reused for 10 minutes; a `kid` it does not know triggers one refetch, at most
+once every 30 seconds.
+
+**Retiring the legacy keys.** The keys Proof signed with before this rotation scheme — the legacy
+keys — are retired once. Proof re-signs the live tokens they signed under a current key, and revokes
+the legacy keys no earlier than 30 days after that re-signing. From then on an old copy that names
+its key answers `key_revoked`, and one with no `kid` does not verify at all. A token that was
+already superseded, revoked or expired when they were re-signed, or that changed while it was read,
+or that the re-signing refused or could not match to its record, stays on the legacy key and stops
+verifying when they are revoked. Replace every copy you handed out or published with the re-signed
+token (see `key_revoked` below).
+
+- **`key_revoked`** — the issuer revoked the key that signed the token, after a suspected compromise
+  or at the retirement of the legacy keys. The result carries
+  `pull_hint: { issuer_origin, handle }`: where to fetch the re-signed token (`handle` is the
+  proof's `proof_id`, or a delegation's `sub`). The handle is read from the token itself, whose
+  signature a revoked key no longer vouches for: URL-encode it before building a request from it —
+  `proofs.token(handle)` for a `ph_ctl_` handle and `proofs.delegationToken(handle)` for a `ph_dlg_`
+  one do that for you. `proofs.token` serves only a proof your own account owns — any other answers
+  404 — so a re-signed token of someone else's proof comes from whoever holds it;
+  `proofs.delegationToken` is public. An API key is refused the token of one of the account's own
+  verified assets (403 `owner_session_required`), and `proofs.listReissued` does not list those for
+  a key: read it signed in, in the dashboard. A revocation takes effect only after two key-set
+  fetches at least 5 minutes apart both carry it, and is then kept for a year.
+- **`jwks_stale`** — the key set could not be refreshed and the cached copy is older than
+  `maxJwksAgeMs` (default 24 hours, at most 25 days; `new Proof(key, { maxJwksAgeMs })`). The result
+  carries `cache_age_seconds`. Call `refreshJWKS()` once the issuer is reachable.
+- **`wrong_key_purpose`**, **`outside_key_window`**, **`token_lifetime_exceeded`** — the key belongs
+  to another token family, the token was signed outside the key's validity window, or it lives longer
+  than the key allows. **`unknown_key`** — no published key matches the token's `kid`.
+
+Revoked-key tombstones are kept in memory only — they are not persisted, so a restarted process
+learns them again from the issuer. `clearTombstones()` forgets them on purpose. `refreshJWKS()` makes
+the next verification refetch the key set (and drops the cached status list); it does not forget
+tombstones.
+
+**What a rotation changes.** `iat` is when the token was signed; `verified_at` is when the control
+it attests was verified. A token re-signed after a key revocation keeps every claim but `iat` — the
+same `jti`, `exp` and `verified_at`, under a new `kid`; a proof token from before `jti` existed also
+gains its row's `jti` and `proof_id`. Judge a proof's age by `verified_at`.
+
+**A generic JOSE or JWT library gives signature-only assurance.** Checking the signature against
+the JWKS is none of the checks above — a key's purpose, its window and lifetime limit, tombstones,
+the status list. Use `verifyOffline` or `proofs.validate()`.
+
+**The current `jti` generation is an online check.** Once a proof is verified again,
+`proofs.validate()` (`POST /proofs/validate`) answers `superseded` for the earlier token. Offline
+verification still accepts that token until its own `exp`: it carries the proof's status-list slot,
+shared with the current token, so revoking or suspending the proof stops both.
+
+**Refresh does not revoke.** A token re-issued within its generation — a renewal — leaves the
+earlier copy valid until its own `exp`; only a revoked key ends it sooner. To withdraw a token,
+revoke the proof.
+
+**Minimum version.** These checks are in `@proof-holdings/sdk` 1.0.0 and later; 1.1.0 is the first release on
+npm. `proofs.token()`, `proofs.listReissued()` and `proofs.delegationToken()` are in 1.4.0 and later.
 
 ## Error Handling
 

@@ -30,16 +30,15 @@ describe('Delegations resource', () => {
     const result = await d.create({
       control_proof: PH_CTL,
       delegate: { type: 'purl', value: 'pkg:npm/@postmark/mcp' },
-      scope: ['email:send'],
       expires_in: 3600,
     });
 
     expect(mock).toHaveBeenCalledWith('/api/v1/delegations', {
       control_proof: PH_CTL,
       delegate: { type: 'purl', value: 'pkg:npm/@postmark/mcp' },
-      scope: ['email:send'],
       expires_in: 3600,
     });
+    expect(mock.mock.calls[0][1]).not.toHaveProperty('scope');
     expect(result.token).toBe('eyJ.token.sig');
   });
 

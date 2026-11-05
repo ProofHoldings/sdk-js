@@ -10,7 +10,7 @@ import type {
 
 /**
  * Delegations — Proof of Delegation. A control-proven domain authorizes a typed
- * url/purl artifact for a set of capability scopes; the attestation is that the
+ * url/purl artifact; the attestation is that the
  * domain's controller authorized the artifact, nothing more.
  */
 export class Delegations {

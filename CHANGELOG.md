@@ -3,6 +3,32 @@
 Notable changes to [`@proof-holdings/sdk`](https://www.npmjs.com/package/@proof-holdings/sdk).
 Source: [ProofHoldings/sdk-js](https://github.com/ProofHoldings/sdk-js).
 
+## 1.4.0 — 2026-11-05
+
+The signing-key rotation (#513), on top of 1.3.0. These are additions; nothing written for 1.3.0
+stops working.
+
+### Added
+
+- `proofs.token(id)`, `proofs.listReissued({ since, page?, limit? })` and
+  `proofs.delegationToken(handle)`: the token pull of the signing-key rotation
+  (`GET /api/v1/proofs/{id}/token`, `GET /api/v1/proofs?reissued_since=`,
+  `GET /api/v1/proofs/delegation-token/{handle}`, the last a public endpoint). A proof of one of the account's own verified assets is read by the signed-in owner: with a live API key `token` answers 403 `owner_session_required` whatever its status, `listReissued` leaves it out and no `proof.reissued` webhook names it. `token` reads the
+  current token of a proof you own by its `ph_ctl_` handle, and a revoked or expired proof answers
+  410 `proof_not_live`; `listReissued` lists your proofs re-issued at or after `since`, oldest
+  first, as references; `delegationToken` reads the current token of an active delegation by its
+  `ph_dlg_` handle. Types `ProofTokenPull`, `ReissuedProof`, `ReissuedProofList`,
+  `ReissuedProofsParams` and `DelegationTokenPull`.
+- `WebhookEventType` includes `proof.reissued` and `delegation.reissued`.
+
+### Deprecated
+
+- Delegation `scope` (delegation schema 2.0: a delegation carries no scope): `scope` on `Delegation` (so on
+  every delegation response type) and on `PublicProfileDelegation` is the scope a delegation issued before
+  schema 2.0 was stored with, otherwise `[]`; `CreateDelegationParams.scope` stays required as released (pass
+  `[]`), and a value given is sent as is, ignored by the server and answered with a `Deprecation` header. Removed in the next major
+  (`sdks/shared/NEXT_MAJOR.md`).
+
 ## 1.3.0 — 2026-11-03
 
 ### Added
